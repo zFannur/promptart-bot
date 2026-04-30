@@ -10,6 +10,18 @@
   <img src="assets/logo.png" alt="PromptArt logo" width="180" />
 </p>
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/01-main.png" width="240" alt="Main menu" />
+  <img src="assets/screenshots/02-generation.png" width="240" alt="Generation result" />
+  <img src="assets/screenshots/03-settings.png" width="240" alt="Settings" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/04-favorites.png" width="240" alt="Favorites" />
+  <img src="assets/screenshots/05-inline.png" width="240" alt="Inline mode" />
+</p>
+
 ## Features
 
 - **Image generation** — 4 models (Flux, Turbo, Seedream-4.0, GPT-Image-2)
