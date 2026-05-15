@@ -11,6 +11,7 @@ from config import settings
 
 BASE_URL = "https://gen.pollinations.ai"
 IMAGE_URL = f"{BASE_URL}/v1/images/generations"
+EDIT_URL = f"{BASE_URL}/v1/images/edits"
 TEXT_URL = f"{BASE_URL}/v1/chat/completions"
 MODELS_URL = f"{BASE_URL}/models"
 BALANCE_URL = f"{BASE_URL}/account/balance"
@@ -226,15 +227,16 @@ class PollinationsClient:
         height: int = 1024,
         seed: int | None = None,
     ) -> tuple[bytes, int]:
-        """In-context image editing for kontext / klein / qwen-image / wan-image.
+        """In-context image editing via /v1/images/edits (multipart/form-data).
 
-        Pollinations accepts reference images on the same /v1/images/generations
-        endpoint via the `image` field, as data URLs. A single data URL works
-        for img2img; a list activates multi-reference in-context editing
-        (e.g. 'combine person from img1 with outfit from img2').
+        The /v1/images/generations endpoint rejects `data:` URLs — its server
+        tries to HTTP-fetch the URL string and dies with 'Fetch API cannot
+        load: data:image/jpeg;base64'. The /v1/images/edits endpoint accepts
+        raw image bytes as multipart fields, which is the right path for
+        klein / kontext / qwen-image / wan-image.
 
-        Returns (output_bytes, used_seed). Image-input models cost more pollen
-        than flat-gen (klein ~0.01, kontext ~0.04 per image).
+        Returns (output_bytes, used_seed). Multi-image edits are sent as
+        repeated `image` multipart fields (httpx supports this natively).
         """
         if not images:
             raise PollinationsError("at least 1 reference image required")
@@ -243,30 +245,36 @@ class PollinationsClient:
         if seed is None:
             seed = random.randint(0, 2**31 - 1)
 
-        data_urls = [
-            f"data:image/jpeg;base64,{base64.b64encode(b).decode('ascii')}"
-            for b in images
+        # httpx multipart spec: list of (field_name, (filename, bytes, ctype)).
+        # Repeating field_name="image" produces multiple parts under one name.
+        files = [
+            ("image", (f"input_{i}.jpg", img_bytes, "image/jpeg"))
+            for i, img_bytes in enumerate(images)
         ]
-        body: dict[str, object] = {
+        # All non-file fields go in `data`. httpx will set the multipart
+        # Content-Type with the boundary automatically — do NOT pass json= or
+        # set Content-Type manually here, that breaks the boundary.
+        form: dict[str, str] = {
             "prompt": prompt,
             "model": model,
             "size": f"{width}x{height}",
-            # img2img convention: single image as bare string, multi-image as
-            # list. Kontext/Klein accept both forms; this matches the most
-            # common Pollinations client implementations.
-            "image": data_urls[0] if len(data_urls) == 1 else data_urls,
             "response_format": "b64_json",
-            "seed": seed,
-            "nologo": True,
+            "seed": str(seed),
+            "nologo": "true",
         }
 
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                resp = await self._client.post(IMAGE_URL, json=body, headers=self._headers)
+                resp = await self._client.post(
+                    EDIT_URL,
+                    files=files,
+                    data=form,
+                    headers=self._headers,
+                )
                 if resp.status_code == 200:
-                    data = resp.json()
-                    b64 = data.get("data", [{}])[0].get("b64_json")
+                    payload = resp.json()
+                    b64 = payload.get("data", [{}])[0].get("b64_json")
                     if not b64:
                         raise PollinationsError("response missing b64_json")
                     image_bytes = base64.b64decode(b64)
@@ -326,30 +334,39 @@ class PollinationsClient:
             payload = resp.json()
         except Exception:
             payload = {}
-        err = payload.get("error", {}) if isinstance(payload, dict) else {}
-        code = err.get("code", "")
-        msg = (err.get("message", "") or "").lower()
+        # Pollinations uses two shapes: top-level {message, code, ...} (newer)
+        # and nested {error: {message, code, ...}} (legacy). Try both.
+        err = payload if isinstance(payload, dict) else {}
+        nested = err.get("error") if isinstance(err.get("error"), dict) else None
+        if nested:
+            err = {**err, **nested}
+        code = (err.get("code") or "")
+        msg_raw = err.get("message") or ""
+        msg = msg_raw.lower()
 
         if status == 400:
             if "nsfw" in msg or "moderation" in msg or "safety" in msg or "safety" in code.lower():
                 raise NSFWRejected("moderation_filter")
-            logger.warning("{} 400 code={}", kind, code or "?")
-            raise PollinationsError(f"bad request ({code or '400'})")
+            logger.warning("{} 400 code={} msg={!r}", kind, code or "?", msg_raw[:300])
+            raise PollinationsError(f"bad request ({code or '400'}): {msg_raw[:200]}")
 
         if status in (401, 403):
-            logger.error("{} auth failed: status={}", kind, status)
+            logger.error("{} auth failed: status={} msg={!r}", kind, status, msg_raw[:200])
             raise PollinationsError(f"auth failed ({status})")
 
         if status == 402:
-            logger.info("{} payment required: {}", kind, msg[:120])
-            raise PremiumRequired(msg[:200] or "insufficient pollen balance")
+            logger.info("{} payment required: {}", kind, msg_raw[:120])
+            raise PremiumRequired(msg_raw[:200] or "insufficient pollen balance")
 
         if status == 429:
+            logger.warning("{} rate limited: {!r}", kind, msg_raw[:200])
             raise QuotaExhausted("rate_limited")
 
         if 500 <= status < 600:
+            logger.warning("{} server error {}: {!r}", kind, status, msg_raw[:300])
             raise PollinationsError(f"server error {status}")
 
+        logger.warning("{} unexpected status {}: {!r}", kind, status, msg_raw[:300])
         raise PollinationsError(f"unexpected status {status}")
 
 
