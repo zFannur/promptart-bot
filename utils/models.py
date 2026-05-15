@@ -8,6 +8,9 @@ which queries `gen.pollinations.ai/models`. This module only holds:
 """
 
 DEFAULT_MODEL = "flux"
+# Cheapest model that accepts image input (in-context editing).
+# Verified 2026-05: klein = FLUX.2 Klein 4B @ ~0.01 pollen/image.
+DEFAULT_EDIT_MODEL = "klein"
 
 # Legacy → current key migration for users registered before the v1 endpoint switch.
 LEGACY_MODEL_REMAP: dict[str, str] = {

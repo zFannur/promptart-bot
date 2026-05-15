@@ -11,6 +11,7 @@ from utils.styles import STYLES
 def settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=t(i18n, "settings.model"), callback_data="set:model")
+    kb.button(text=t(i18n, "settings.edit_model"), callback_data="set:edit_model")
     kb.button(text=t(i18n, "settings.ratio"), callback_data="set:ratio")
     kb.button(text=t(i18n, "settings.style"), callback_data="set:style")
     kb.adjust(1)
@@ -21,13 +22,22 @@ def models_kb(
     current: str,
     models: list[ModelInfo],
     i18n: dict[str, str],
+    *,
+    field: str = "model",
 ) -> InlineKeyboardMarkup:
+    """Render a picker for any model field (model / edit_model).
+
+    Pass `field="edit_model"` to render the same picker but with callback
+    data that targets the edit-model column. The caller is responsible for
+    filtering the `models` list (e.g. only image-input-capable models for
+    the edit picker).
+    """
     kb = InlineKeyboardBuilder()
     for m in models:
         mark = "✅ " if m.name == current else ""
         kb.button(
             text=f"{mark}{m.name} · {format_price(m.price_pollen)}",
-            callback_data=f"setval:model:{m.name}",
+            callback_data=f"setval:{field}:{m.name}",
         )
     kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
     kb.adjust(1)

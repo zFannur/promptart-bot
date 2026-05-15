@@ -21,13 +21,25 @@ def _format_settings(user, model_by_key: dict[str, ModelInfo], i18n: dict[str, s
         f"{user.model} · {format_price(model_info.price_pollen)}"
         if model_info else user.model
     )
+    edit_info = model_by_key.get(user.edit_model)
+    edit_label = (
+        f"{user.edit_model} · {format_price(edit_info.price_pollen)}"
+        if edit_info else user.edit_model
+    )
     ratio_label = RATIOS_BY_KEY[user.aspect_ratio].label if user.aspect_ratio in RATIOS_BY_KEY else user.aspect_ratio
     if user.style and user.style in STYLES_BY_KEY:
         s = STYLES_BY_KEY[user.style]
         style_label = f"{s.emoji} {t(i18n, s.label_key)}"
     else:
         style_label = t(i18n, "settings.style_none")
-    return t(i18n, "settings.title", model=model_label, ratio=ratio_label, style=style_label)
+    return t(
+        i18n,
+        "settings.title_full",
+        model=model_label,
+        edit_model=edit_label,
+        ratio=ratio_label,
+        style=style_label,
+    )
 
 
 async def _balance_line(i18n: dict[str, str]) -> str:
@@ -79,7 +91,32 @@ async def cb_pick_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     models, _ = await _models_index()
     balance_line = await _balance_line(i18n)
     header = t(i18n, "settings.choose_model_header", balance=balance_line)
-    await cb.message.edit_text(header, reply_markup=models_kb(user.model, models, i18n))
+    await cb.message.edit_text(
+        header,
+        reply_markup=models_kb(user.model, models, i18n, field="model"),
+    )
+
+
+@router.callback_query(F.data == "set:edit_model")
+async def cb_pick_edit_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
+    """Render the edit-model picker — only models that accept image input."""
+    await cb.answer()
+    if cb.from_user is None or cb.message is None:
+        return
+    user = await get_user(cb.from_user.id)
+    if user is None:
+        return
+    all_models, _ = await _models_index()
+    editable = [m for m in all_models if m.supports_image_input]
+    if not editable:
+        await cb.message.edit_text(t(i18n, "settings.no_edit_models"))
+        return
+    balance_line = await _balance_line(i18n)
+    header = t(i18n, "settings.choose_edit_model", balance=balance_line)
+    await cb.message.edit_text(
+        header,
+        reply_markup=models_kb(user.edit_model, editable, i18n, field="edit_model"),
+    )
 
 
 @router.callback_query(F.data == "set:ratio")
@@ -114,6 +151,12 @@ async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     if field == "model":
         _, by_key = await _models_index()
         if value not in by_key:
+            await cb.answer()
+            return
+    elif field == "edit_model":
+        _, by_key = await _models_index()
+        edit_info = by_key.get(value)
+        if edit_info is None or not edit_info.supports_image_input:
             await cb.answer()
             return
     elif field == "ratio" and value not in RATIOS_BY_KEY:

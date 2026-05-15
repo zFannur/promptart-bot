@@ -216,6 +216,82 @@ class PollinationsClient:
 
         raise PollinationsError(str(last_exc) if last_exc else "exhausted retries")
 
+    async def edit_image(
+        self,
+        prompt: str,
+        images: list[bytes],
+        *,
+        model: str = "klein",
+        width: int = 1024,
+        height: int = 1024,
+        seed: int | None = None,
+    ) -> tuple[bytes, int]:
+        """In-context image editing for kontext / klein / qwen-image / wan-image.
+
+        Pollinations accepts reference images on the same /v1/images/generations
+        endpoint via the `image` field, as data URLs. A single data URL works
+        for img2img; a list activates multi-reference in-context editing
+        (e.g. 'combine person from img1 with outfit from img2').
+
+        Returns (output_bytes, used_seed). Image-input models cost more pollen
+        than flat-gen (klein ~0.01, kontext ~0.04 per image).
+        """
+        if not images:
+            raise PollinationsError("at least 1 reference image required")
+        if len(images) > 4:
+            raise PollinationsError("at most 4 reference images supported")
+        if seed is None:
+            seed = random.randint(0, 2**31 - 1)
+
+        data_urls = [
+            f"data:image/jpeg;base64,{base64.b64encode(b).decode('ascii')}"
+            for b in images
+        ]
+        body: dict[str, object] = {
+            "prompt": prompt,
+            "model": model,
+            "size": f"{width}x{height}",
+            # img2img convention: single image as bare string, multi-image as
+            # list. Kontext/Klein accept both forms; this matches the most
+            # common Pollinations client implementations.
+            "image": data_urls[0] if len(data_urls) == 1 else data_urls,
+            "response_format": "b64_json",
+            "seed": seed,
+            "nologo": True,
+        }
+
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = await self._client.post(IMAGE_URL, json=body, headers=self._headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    b64 = data.get("data", [{}])[0].get("b64_json")
+                    if not b64:
+                        raise PollinationsError("response missing b64_json")
+                    image_bytes = base64.b64decode(b64)
+                    if len(image_bytes) < 100:
+                        raise PollinationsError("decoded image too small")
+                    return image_bytes, seed
+
+                self._raise_for_status(resp, kind="edit")
+
+            except (NSFWRejected, QuotaExhausted, PremiumRequired):
+                raise
+            except PollinationsError as e:
+                if attempt < 2 and "server error" in str(e):
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                last_exc = e
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise PollinationsError(f"network error: {e}") from e
+
+        raise PollinationsError(str(last_exc) if last_exc else "exhausted retries")
+
     async def enhance_prompt(self, prompt: str) -> str:
         payload = {
             "model": "openai",

@@ -10,7 +10,7 @@ from loguru import logger
 
 from config import settings
 from utils.aspect_ratios import DEFAULT_RATIO
-from utils.models import DEFAULT_MODEL, LEGACY_MODEL_REMAP
+from utils.models import DEFAULT_EDIT_MODEL, DEFAULT_MODEL, LEGACY_MODEL_REMAP
 
 
 SCHEMA = """
@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT,
     language TEXT DEFAULT 'en',
     model TEXT DEFAULT 'flux',
+    edit_model TEXT DEFAULT 'klein',
     aspect_ratio TEXT DEFAULT '1:1',
     style TEXT,
     tier TEXT DEFAULT 'free',
@@ -65,6 +66,7 @@ class User:
     username: str | None
     language: str
     model: str
+    edit_model: str
     aspect_ratio: str
     style: str | None
     tier: str
@@ -84,12 +86,15 @@ class Generation:
 
 
 def _row_to_user(row: aiosqlite.Row) -> User:
+    # edit_model may be missing if a row predates the column migration.
+    edit_model = row["edit_model"] if "edit_model" in row.keys() else DEFAULT_EDIT_MODEL
     return User(
         id=row["id"],
         telegram_id=row["telegram_id"],
         username=row["username"],
         language=row["language"],
         model=row["model"],
+        edit_model=edit_model or DEFAULT_EDIT_MODEL,
         aspect_ratio=row["aspect_ratio"],
         style=row["style"],
         tier=row["tier"],
@@ -115,6 +120,20 @@ async def init_db() -> None:
     async with aiosqlite.connect(settings.db_path) as db:
         await db.executescript(SCHEMA)
         await db.commit()
+
+        # Idempotent column-add for pre-existing DBs (Railway volume etc).
+        cur = await db.execute("PRAGMA table_info(users)")
+        existing_cols = {row[1] for row in await cur.fetchall()}
+        if "edit_model" not in existing_cols:
+            await db.execute(
+                f"ALTER TABLE users ADD COLUMN edit_model TEXT DEFAULT '{DEFAULT_EDIT_MODEL}'"
+            )
+            await db.execute(
+                "UPDATE users SET edit_model = ? WHERE edit_model IS NULL",
+                (DEFAULT_EDIT_MODEL,),
+            )
+            logger.info("Added edit_model column (default {})", DEFAULT_EDIT_MODEL)
+
         # Idempotent migration: rename Pollinations model keys that were
         # deprecated when the API moved to gen.pollinations.ai/v1.
         for old_key, new_key in LEGACY_MODEL_REMAP.items():
@@ -143,12 +162,12 @@ async def upsert_user(
     async with _connect() as db:
         await db.execute(
             """
-            INSERT INTO users (telegram_id, username, language, model, aspect_ratio)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (telegram_id, username, language, model, edit_model, aspect_ratio)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(telegram_id) DO UPDATE SET
                 username = excluded.username
             """,
-            (telegram_id, username, language, DEFAULT_MODEL, DEFAULT_RATIO),
+            (telegram_id, username, language, DEFAULT_MODEL, DEFAULT_EDIT_MODEL, DEFAULT_RATIO),
         )
         await db.commit()
         cur = await db.execute("SELECT * FROM users WHERE telegram_id = ?", (telegram_id,))
@@ -175,7 +194,7 @@ async def get_user_lang(telegram_id: int) -> str | None:
 
 
 async def update_user_setting(telegram_id: int, field: str, value: Any) -> None:
-    if field not in {"model", "aspect_ratio", "style", "language"}:
+    if field not in {"model", "edit_model", "aspect_ratio", "style", "language"}:
         raise ValueError(f"unsupported field: {field}")
     async with _connect() as db:
         await db.execute(
