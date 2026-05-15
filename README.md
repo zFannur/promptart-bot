@@ -85,6 +85,12 @@ promptart_bot/
 
 ## Deploy to Railway
 
+> ⚠️ **DATA LOSS WARNING.** Railway containers have **ephemeral** filesystems
+> — every `git push` (redeploy) wipes the working tree, including the SQLite
+> database. If you skip step 5 below, **all users lose their history,
+> favorites, and settings on every deploy**. The bot will print a loud
+> warning at startup if it detects this misconfiguration.
+
 1. Push the repo to GitHub.
 2. Sign in at [railway.app](https://railway.app) with GitHub.
 3. **New Project → Deploy from GitHub repo** → pick this repo.
@@ -92,9 +98,18 @@ promptart_bot/
    - `BOT_TOKEN`
    - `POLLINATIONS_API_KEY`
    - `ADMIN_ID`
-   - `DB_PATH=/data/bot.db`
-5. In **Settings → Volumes**, create a volume mounted at `/data` (persists DB across redeploys).
-6. Done — Railway uses `Procfile` automatically.
+   - `DB_PATH=/data/bot.db`  ← **must** match the volume mount path in step 5
+5. **REQUIRED**: In **Settings → Volumes**, **create a new Volume**:
+   - **Mount path**: `/data`
+   - Size: 1 GB is enough for thousands of users
+   - This is what makes the DB survive redeploys. Without it, every push to
+     GitHub destroys all user data.
+6. Hit **Deploy**. Railway uses `Procfile` automatically.
+
+**Verify persistence after first deploy:** run `/start` in Telegram, then
+push any change to GitHub. After Railway redeploys, your `/history` and
+`/favorites` should still show the same entries. If they're empty, the
+volume isn't mounted — go back to step 5.
 
 ## Tech stack
 

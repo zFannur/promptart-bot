@@ -20,7 +20,7 @@ import asyncio
 import io
 
 from aiogram import Bot, F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from loguru import logger
@@ -189,6 +189,22 @@ async def _debounced_photo_ack(
         logger.debug("debounced ack send failed: {}", e)
 
 
+# Auto-detect: a photo arriving with NO active FSM state means the user
+# wants to edit it — no need to tap «✏️ Edit» first. This handler is
+# registered AFTER receive_photo so any in-progress edit session keeps
+# the more specific handler. StateFilter(None) makes the match explicit
+# instead of relying on aiogram's filter order.
+@router.message(StateFilter(None), F.photo)
+async def auto_enter_edit(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
+    if message.from_user is None:
+        return
+    await state.set_state(EditStates.collecting)
+    await state.update_data(photos=[], caption=None, ack_token=0)
+    # Dispatch into the regular collecting handler so all branches (fast
+    # path for single-photo-with-caption, debounced ack for albums) apply.
+    await receive_photo(message, state, i18n)
+
+
 # ─────────────────────────── text → trigger ─────────────────────────────
 
 
@@ -242,18 +258,47 @@ async def _run_edit(
     state: FSMContext,
     i18n: dict[str, str],
 ) -> None:
+    """Wrapper around run_edit_with_sources that also clears the collecting
+    FSM state at the end (entry-point variant used when the trigger was an
+    interactive edit session)."""
+    try:
+        await run_edit_with_sources(
+            bot=bot,
+            chat_id=chat_id,
+            user_telegram_id=user_telegram_id,
+            photos=photos,
+            prompt=prompt,
+            i18n=i18n,
+        )
+    finally:
+        await state.clear()
+
+
+async def run_edit_with_sources(
+    *,
+    bot: Bot,
+    chat_id: int,
+    user_telegram_id: int,
+    photos: list[str],
+    prompt: str,
+    i18n: dict[str, str],
+) -> int | None:
+    """Core image-edit flow, decoupled from FSM.
+
+    Other handlers (Regenerate / Enhance on an edited photo) call this
+    directly to re-edit using the same source photos. Returns the new
+    generation_id, or None on any failure (error message already sent).
+    """
     user = await get_user(user_telegram_id)
     if user is None:
         logger.warning("edit requested by unknown user {}", user_telegram_id)
         await bot.send_message(chat_id, t(i18n, "errors.generic"))
-        await state.clear()
-        return
+        return None
 
     ratio = RATIOS_BY_KEY.get(user.aspect_ratio)
     if ratio is None:
         await bot.send_message(chat_id, t(i18n, "errors.generic"))
-        await state.clear()
-        return
+        return None
 
     progress = await bot.send_message(
         chat_id,
@@ -261,7 +306,6 @@ async def _run_edit(
     )
     await bot.send_chat_action(chat_id, "upload_photo")
 
-    # Download photos concurrently. Any failure aborts the edit.
     try:
         image_bytes_list = await asyncio.gather(
             *(_download_photo(bot, file_id) for file_id in photos)
@@ -272,8 +316,7 @@ async def _run_edit(
             user_telegram_id, photos, e,
         )
         await progress.edit_text(t(i18n, "edit.download_failed"))
-        await state.clear()
-        return
+        return None
 
     try:
         out_bytes, seed = await pollinations.edit_image(
@@ -285,36 +328,31 @@ async def _run_edit(
         )
     except NSFWRejected:
         await progress.edit_text(t(i18n, "generation.nsfw"))
-        await state.clear()
-        return
+        return None
     except PremiumRequired:
         logger.info("edit premium required for {}", user.edit_model)
         await progress.edit_text(t(i18n, "generation.premium_required", model=user.edit_model))
-        await state.clear()
-        return
+        return None
     except QuotaExhausted as e:
         logger.warning("edit quota exhausted: {}", e)
         await progress.edit_text(t(i18n, "errors.api_down"))
-        await state.clear()
-        return
+        return None
     except PollinationsError as e:
         logger.warning("edit pollinations error: {}", e)
         await progress.edit_text(t(i18n, "edit.error"))
-        await state.clear()
-        return
+        return None
 
-    # Persist to history so user sees the edited result alongside generations.
-    # We tag the prompt with [EDIT] marker so it's recognisable in history.
-    history_prompt = f"[EDIT × {len(photos)}] {prompt}"
     gen_id = await save_generation(
         user_id=user.id,
-        prompt=history_prompt,
+        prompt=prompt,
         enhanced_prompt=None,
         model=user.edit_model,
         aspect_ratio=user.aspect_ratio,
         style=user.style,
         seed=seed,
         file_id=None,
+        kind="edit",
+        source_photos=photos,
     )
 
     photo = BufferedInputFile(out_bytes, filename=f"edit_{gen_id}.jpg")
@@ -332,7 +370,7 @@ async def _run_edit(
     except Exception:
         pass
 
-    await state.clear()
+    return gen_id
 
 
 # ─────────────────────────── helpers ───────────────────────────────────

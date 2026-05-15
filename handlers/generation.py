@@ -3,6 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from loguru import logger
 
+from handlers.edit import run_edit_with_sources
 from keyboards.generation import confirm_enhance_kb, post_gen_kb
 from keyboards.main import main_menu
 from services.database import (
@@ -143,6 +144,20 @@ async def cb_regenerate(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     if gen is None:
         await cb.bot.send_message(cb.message.chat.id, t(i18n, "errors.generic"))
         return
+
+    # If the original was an edit, redo it as an edit (same source photos +
+    # same prompt) instead of re-running the prompt as a fresh creation.
+    if gen.kind == "edit" and gen.source_photos:
+        await run_edit_with_sources(
+            bot=cb.bot,
+            chat_id=cb.message.chat.id,
+            user_telegram_id=cb.from_user.id,
+            photos=list(gen.source_photos),
+            prompt=gen.prompt,
+            i18n=i18n,
+        )
+        return
+
     await _do_generation(
         bot=cb.bot,
         chat_id=cb.message.chat.id,
@@ -221,6 +236,20 @@ async def cb_enhance_apply(cb: CallbackQuery, state: FSMContext, i18n: dict[str,
         await cb.message.delete()
     except Exception:
         pass
+
+    # If the source generation was an edit, re-edit with the enhanced prompt
+    # so we preserve the original input photos.
+    original = await get_generation(gen_id)
+    if original and original.kind == "edit" and original.source_photos:
+        await run_edit_with_sources(
+            bot=cb.bot,
+            chat_id=chat_id,
+            user_telegram_id=user_id,
+            photos=list(original.source_photos),
+            prompt=enhanced,
+            i18n=i18n,
+        )
+        return
 
     await _do_generation(
         bot=cb.bot,

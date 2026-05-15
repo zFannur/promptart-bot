@@ -19,6 +19,8 @@ router = Router(name=__name__)
 @router.message(Command("history"))
 @router.message(F.text.in_(HISTORY_LABELS))
 async def cmd_history(message: Message, i18n: dict[str, str]) -> None:
+    """Render the user's last 10 generations as actual photo previews with
+    inline buttons (Again / Edit / Favorite) — same UX as /favorites."""
     if message.from_user is None:
         return
     user = await get_user(message.from_user.id)
@@ -29,11 +31,21 @@ async def cmd_history(message: Message, i18n: dict[str, str]) -> None:
         await message.answer(t(i18n, "history.empty"))
         return
 
-    lines = [t(i18n, "history.title"), ""]
-    for idx, g in enumerate(gens, start=1):
-        prompt_short = g.prompt[:80] + ("…" if len(g.prompt) > 80 else "")
-        lines.append(t(i18n, "history.item", idx=idx, prompt=prompt_short, model=g.model, ratio=g.aspect_ratio))
-    await message.answer("\n\n".join(lines))
+    await message.answer(t(i18n, "history.title"))
+    for g in gens:
+        caption = t(i18n, "generation.done_caption", prompt=g.prompt[:900])
+        fav = await is_favorite(user.id, g.id)
+        kb = post_gen_kb(g.id, is_fav=fav, i18n=i18n)
+        try:
+            if g.file_id:
+                await message.answer_photo(g.file_id, caption=caption, reply_markup=kb)
+            else:
+                # Old rows from before file_id was tracked. Show text fallback
+                # with a re-generate option.
+                await message.answer(caption, reply_markup=history_item_kb(g.id, i18n))
+        except Exception as e:
+            logger.warning("history send failed for gen {}: {}", g.id, e)
+            await message.answer(caption, reply_markup=history_item_kb(g.id, i18n))
 
 
 @router.message(Command("favorites"))

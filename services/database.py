@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,8 @@ CREATE TABLE IF NOT EXISTS generations (
     style TEXT,
     seed INTEGER,
     file_id TEXT,
+    kind TEXT DEFAULT 'create',         -- 'create' | 'edit'
+    source_photos TEXT,                 -- JSON list of telegram file_ids used as input (edits only)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
@@ -83,6 +86,8 @@ class Generation:
     style: str | None
     seed: int | None
     file_id: str | None
+    kind: str = "create"  # 'create' | 'edit'
+    source_photos: tuple[str, ...] = ()  # input file_ids for edits
 
 
 def _row_to_user(row: aiosqlite.Row) -> User:
@@ -102,6 +107,17 @@ def _row_to_user(row: aiosqlite.Row) -> User:
 
 
 def _row_to_gen(row: aiosqlite.Row) -> Generation:
+    keys = row.keys()
+    kind = row["kind"] if "kind" in keys else "create"
+    raw_sources = row["source_photos"] if "source_photos" in keys else None
+    source_photos: tuple[str, ...] = ()
+    if raw_sources:
+        try:
+            parsed = json.loads(raw_sources)
+            if isinstance(parsed, list):
+                source_photos = tuple(str(x) for x in parsed)
+        except (TypeError, ValueError):
+            logger.warning("gen {} has malformed source_photos JSON", row["id"])
     return Generation(
         id=row["id"],
         user_id=row["user_id"],
@@ -112,6 +128,8 @@ def _row_to_gen(row: aiosqlite.Row) -> Generation:
         style=row["style"],
         seed=row["seed"],
         file_id=row["file_id"],
+        kind=kind or "create",
+        source_photos=source_photos,
     )
 
 
@@ -133,6 +151,16 @@ async def init_db() -> None:
                 (DEFAULT_EDIT_MODEL,),
             )
             logger.info("Added edit_model column (default {})", DEFAULT_EDIT_MODEL)
+
+        cur = await db.execute("PRAGMA table_info(generations)")
+        gen_cols = {row[1] for row in await cur.fetchall()}
+        if "kind" not in gen_cols:
+            await db.execute("ALTER TABLE generations ADD COLUMN kind TEXT DEFAULT 'create'")
+            await db.execute("UPDATE generations SET kind = 'create' WHERE kind IS NULL")
+            logger.info("Added generations.kind column")
+        if "source_photos" not in gen_cols:
+            await db.execute("ALTER TABLE generations ADD COLUMN source_photos TEXT")
+            logger.info("Added generations.source_photos column")
 
         # Idempotent migration: rename Pollinations model keys that were
         # deprecated when the API moved to gen.pollinations.ai/v1.
@@ -213,15 +241,23 @@ async def save_generation(
     style: str | None,
     seed: int,
     file_id: str | None,
+    *,
+    kind: str = "create",
+    source_photos: list[str] | tuple[str, ...] | None = None,
 ) -> int:
+    sources_json = json.dumps(list(source_photos)) if source_photos else None
     async with _connect() as db:
         cur = await db.execute(
             """
             INSERT INTO generations
-                (user_id, prompt, enhanced_prompt, model, aspect_ratio, style, seed, file_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (user_id, prompt, enhanced_prompt, model, aspect_ratio, style,
+                 seed, file_id, kind, source_photos)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, prompt, enhanced_prompt, model, aspect_ratio, style, seed, file_id),
+            (
+                user_id, prompt, enhanced_prompt, model, aspect_ratio, style,
+                seed, file_id, kind, sources_json,
+            ),
         )
         await db.commit()
         return cur.lastrowid or 0

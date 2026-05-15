@@ -3,6 +3,7 @@ import base64
 import random
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from loguru import logger
@@ -15,6 +16,7 @@ EDIT_URL = f"{BASE_URL}/v1/images/edits"
 TEXT_URL = f"{BASE_URL}/v1/chat/completions"
 MODELS_URL = f"{BASE_URL}/models"
 BALANCE_URL = f"{BASE_URL}/account/balance"
+USAGE_URL = f"{BASE_URL}/account/usage"
 
 MODELS_CACHE_TTL_SEC = 600  # 10 min
 
@@ -140,6 +142,36 @@ class PollinationsClient:
             models.sort(key=lambda m: (m.price_pollen, m.name))
             self._models_cache = (now, models)
             return models
+
+    async def get_usage_count_24h(self) -> int | None:
+        """Number of API calls in the last 24 hours, or None if the key
+        lacks 'profile usage' permission. We don't try to sum pollen-cost
+        per record because the usage records don't carry the per-call
+        price — only token counts."""
+        try:
+            resp = await self._client.get(USAGE_URL, headers=self._headers)
+        except (httpx.TimeoutException, httpx.NetworkError):
+            return None
+        if resp.status_code != 200:
+            return None
+        try:
+            records = resp.json().get("usage") or []
+        except Exception:
+            return None
+        cutoff = datetime.now(UTC) - timedelta(hours=24)
+        count = 0
+        for r in records:
+            ts = r.get("timestamp")
+            if not ts:
+                continue
+            try:
+                # API timestamps are 'YYYY-MM-DD HH:MM:SS' in UTC.
+                dt = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+            except (ValueError, TypeError):
+                continue
+            if dt >= cutoff:
+                count += 1
+        return count
 
     async def get_balance(self) -> float | BalanceUnavailable:
         """Returns current pollen balance, or BalanceUnavailable if the key

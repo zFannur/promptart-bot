@@ -1,5 +1,7 @@
 import asyncio
+import os
 import sys
+from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -26,8 +28,37 @@ def setup_logging() -> None:
     )
 
 
+def warn_if_db_ephemeral() -> None:
+    """Loudly warn at startup if the configured DB path will not survive a
+    container redeploy. Railway / Render / Fly etc. wipe the working tree
+    on every deploy unless an explicit persistent Volume is mounted.
+
+    Heuristic: any RELATIVE path on Linux is suspicious. Also a path under
+    /tmp or /app (the Railway working tree). A path under /data, /var/lib,
+    or any user-set absolute path outside those traps is assumed persistent.
+    """
+    db_path = Path(settings.db_path).resolve()
+    on_container = sys.platform.startswith("linux") and (
+        os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("PORT") or os.path.exists("/.dockerenv")
+    )
+    suspicious_prefixes = ("/app/", "/tmp/", "/workspace/")
+    raw = settings.db_path
+    is_relative = not os.path.isabs(raw)
+    is_ephemeral_dir = any(str(db_path).startswith(p) for p in suspicious_prefixes)
+
+    if on_container and (is_relative or is_ephemeral_dir):
+        logger.warning("=" * 60)
+        logger.warning("⚠️  DB_PATH={} looks EPHEMERAL", db_path)
+        logger.warning("    Container filesystems are wiped on redeploy.")
+        logger.warning("    Mount a persistent Railway Volume and set")
+        logger.warning("    DB_PATH=/data/bot.db (or similar absolute path)")
+        logger.warning("    See README.md → 'Railway deployment' for steps.")
+        logger.warning("=" * 60)
+
+
 async def main() -> None:
     setup_logging()
+    warn_if_db_ephemeral()
     await init_db()
 
     bot = Bot(

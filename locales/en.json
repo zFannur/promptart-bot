@@ -38,6 +38,8 @@
   "settings.saved": "✅ Saved",
   "balance.line": "💰 <b>Balance:</b> {balance}",
   "balance.current": "💰 <b>Your balance:</b> {balance}",
+  "balance.usage_24h": "📊 <b>Used last 24h:</b> {count} generations",
+  "balance.wallet_note": "ℹ️ Pollinations uses a <b>single pollen wallet</b> — your hourly tier grant and any paid packs all add to the same balance. See your tier and refill rate at <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
   "balance.models_header": "<b>Image models — what you can afford right now:</b>",
   "balance.unavailable_permission": "💰 <b>Balance:</b> hidden — your API key lacks the <code>profile usage</code> permission. Generate a new key at <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a> with that scope to see balance here.",
   "balance.unavailable_generic": "💰 <b>Balance:</b> temporarily unavailable. Check <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",

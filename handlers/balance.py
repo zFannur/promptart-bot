@@ -24,12 +24,21 @@ async def cmd_balance(message: Message, i18n: dict[str, str]) -> None:
             await message.answer(t(i18n, "balance.unavailable_generic"))
         return
 
-    models = await pollinations.list_image_models()
-    # Render the price list so users see what they can afford right now.
+    # Fetch usage in parallel with models.
+    import asyncio as _asyncio
+    usage_count, models = await _asyncio.gather(
+        pollinations.get_usage_count_24h(),
+        pollinations.list_image_models(),
+    )
+
     lines = [t(i18n, "balance.current", balance=format_price(bal))]
+    if usage_count is not None:
+        lines.append(t(i18n, "balance.usage_24h", count=usage_count))
+    lines.append("")
+    lines.append(t(i18n, "balance.wallet_note"))
     lines.append("")
     lines.append(t(i18n, "balance.models_header"))
     for m in models[:10]:
         affordable = "✅" if bal >= m.price_pollen else "❌"
         lines.append(f"{affordable} <code>{m.name}</code> — {format_price(m.price_pollen)}")
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), disable_web_page_preview=True)
