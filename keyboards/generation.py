@@ -8,9 +8,10 @@ def post_gen_kb(gen_id: int, is_fav: bool, i18n: dict[str, str]) -> InlineKeyboa
     kb = InlineKeyboardBuilder()
     kb.button(text=t(i18n, "buttons.again"), callback_data=f"regen:{gen_id}")
     kb.button(text=t(i18n, "buttons.enhance"), callback_data=f"enh:{gen_id}")
+    kb.button(text=t(i18n, "buttons.edit_this"), callback_data=f"edit_gen:{gen_id}")
     fav_label = "✅ " + t(i18n, "buttons.favorite") if is_fav else t(i18n, "buttons.favorite")
     kb.button(text=fav_label, callback_data=f"fav:{gen_id}")
-    kb.adjust(2, 1)
+    kb.adjust(2, 2)
     return kb.as_markup()
 
 
@@ -25,5 +26,6 @@ def confirm_enhance_kb(gen_id: int, i18n: dict[str, str]) -> InlineKeyboardMarku
 def history_item_kb(gen_id: int, i18n: dict[str, str]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=t(i18n, "buttons.again"), callback_data=f"regen:{gen_id}")
-    kb.adjust(1)
+    kb.button(text=t(i18n, "buttons.edit_this"), callback_data=f"edit_gen:{gen_id}")
+    kb.adjust(2)
     return kb.as_markup()

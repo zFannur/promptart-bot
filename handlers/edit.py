@@ -28,6 +28,7 @@ from loguru import logger
 from keyboards.edit import edit_cancel_kb
 from keyboards.generation import post_gen_kb
 from services.database import (
+    get_generation,
     get_user,
     save_generation,
     update_generation_file_id,
@@ -63,6 +64,43 @@ async def open_edit(message: Message, state: FSMContext, i18n: dict[str, str]) -
     await state.update_data(photos=[], caption=None)
     await message.answer(
         t(i18n, "edit.ask_input"),
+        reply_markup=edit_cancel_kb(i18n),
+    )
+
+
+@router.callback_query(F.data.startswith("edit_gen:"))
+async def cb_edit_from_generation(
+    cb: CallbackQuery,
+    state: FSMContext,
+    i18n: dict[str, str],
+) -> None:
+    """Enter the edit flow with a previously-generated photo pre-loaded.
+
+    Used by the «✏️ Edit» button under any generated/edited photo and
+    under history items. The original file_id is stored as photos[0]; the
+    user can either send more photos (up to 3 more, total ≤ 4) or skip
+    straight to typing the edit description.
+    """
+    if cb.from_user is None or cb.data is None or cb.message is None:
+        await cb.answer()
+        return
+    await cb.answer()
+    try:
+        gen_id = int(cb.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        return
+
+    gen = await get_generation(gen_id)
+    if gen is None or not gen.file_id:
+        await cb.message.answer(t(i18n, "edit.gen_missing"))
+        return
+
+    await state.clear()
+    await state.set_state(EditStates.collecting)
+    await state.update_data(photos=[gen.file_id], caption=None, ack_token=0)
+
+    await cb.message.answer(
+        t(i18n, "edit.from_existing"),
         reply_markup=edit_cancel_kb(i18n),
     )
 
