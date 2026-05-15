@@ -1,14 +1,15 @@
 import asyncio
+import base64
 import random
-from urllib.parse import quote
 
 import httpx
 from loguru import logger
 
 from config import settings
 
-IMAGE_URL = "https://image.pollinations.ai/prompt/{prompt}"
-TEXT_URL = "https://text.pollinations.ai/openai"
+BASE_URL = "https://gen.pollinations.ai"
+IMAGE_URL = f"{BASE_URL}/v1/images/generations"
+TEXT_URL = f"{BASE_URL}/v1/chat/completions"
 
 ENHANCER_SYSTEM_PROMPT = (
     "You are an expert prompt engineer for image generation models. "
@@ -28,7 +29,11 @@ class NSFWRejected(PollinationsError):
 
 
 class QuotaExhausted(PollinationsError):
-    """API quota exhausted on the current tier."""
+    """API quota / pollen balance exhausted on the current tier."""
+
+
+class PremiumRequired(PollinationsError):
+    """The chosen model requires more pollen than the account has."""
 
 
 class PollinationsClient:
@@ -38,7 +43,6 @@ class PollinationsClient:
             follow_redirects=True,
         )
         self._headers = {"Authorization": f"Bearer {settings.pollinations_api_key}"}
-        self._referrer = settings.pollinations_referrer
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -52,48 +56,42 @@ class PollinationsClient:
         model: str = "flux",
         seed: int | None = None,
     ) -> tuple[bytes, int]:
-        """Returns (image_bytes, used_seed)."""
+        """Returns (image_bytes, used_seed) via gen.pollinations.ai/v1/images/generations."""
         if seed is None:
             seed = random.randint(0, 2**31 - 1)
 
-        params = {
-            "width": width,
-            "height": height,
+        body = {
+            "prompt": prompt,
             "model": model,
+            "size": f"{width}x{height}",
+            "response_format": "b64_json",
             "seed": seed,
-            "nologo": "true",
-            "private": "true",
-            "referrer": self._referrer,
+            "nologo": True,
         }
-        url = IMAGE_URL.format(prompt=quote(prompt, safe=""))
 
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                resp = await self._client.get(url, params=params, headers=self._headers)
+                resp = await self._client.post(IMAGE_URL, json=body, headers=self._headers)
                 if resp.status_code == 200:
-                    if not resp.content or len(resp.content) < 100:
-                        raise PollinationsError("empty image response")
-                    return resp.content, seed
-                if resp.status_code == 400:
-                    body = resp.text.lower()
-                    if "nsfw" in body or "moderation" in body or "safety" in body:
-                        raise NSFWRejected("moderation_filter")
-                    raise PollinationsError(f"bad request (status 400, len={len(body)})")
-                if resp.status_code in (401, 403):
-                    raise PollinationsError(f"auth failed: {resp.status_code}")
-                if resp.status_code in (402, 429):
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    raise QuotaExhausted(f"status {resp.status_code}")
-                if 500 <= resp.status_code < 600:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    raise PollinationsError(f"server error {resp.status_code}")
-                raise PollinationsError(f"unexpected status {resp.status_code}")
-            except (NSFWRejected, QuotaExhausted):
+                    data = resp.json()
+                    b64 = data.get("data", [{}])[0].get("b64_json")
+                    if not b64:
+                        raise PollinationsError("response missing b64_json")
+                    image_bytes = base64.b64decode(b64)
+                    if len(image_bytes) < 100:
+                        raise PollinationsError("decoded image too small")
+                    return image_bytes, seed
+
+                self._raise_for_status(resp, kind="image")
+
+            except (NSFWRejected, QuotaExhausted, PremiumRequired):
+                raise
+            except PollinationsError as e:
+                # 5xx already retried inside _raise_for_status path; surface other 4xx immediately
+                if attempt < 2 and "server error" in str(e):
+                    await asyncio.sleep(2 ** attempt)
+                    continue
                 raise
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 last_exc = e
@@ -104,30 +102,6 @@ class PollinationsClient:
 
         raise PollinationsError(str(last_exc) if last_exc else "exhausted retries")
 
-    async def generate_image_url(
-        self,
-        prompt: str,
-        *,
-        width: int = 1024,
-        height: int = 1024,
-        model: str = "turbo",
-        seed: int | None = None,
-    ) -> str:
-        """Build a public Pollinations URL for inline mode (no fetch)."""
-        if seed is None:
-            seed = random.randint(0, 2**31 - 1)
-        params = {
-            "width": width,
-            "height": height,
-            "model": model,
-            "seed": seed,
-            "nologo": "true",
-            "private": "true",
-            "referrer": self._referrer,
-        }
-        query = "&".join(f"{k}={v}" for k, v in params.items())
-        return f"{IMAGE_URL.format(prompt=quote(prompt, safe=''))}?{query}"
-
     async def enhance_prompt(self, prompt: str) -> str:
         payload = {
             "model": "openai",
@@ -135,16 +109,10 @@ class PollinationsClient:
                 {"role": "system", "content": ENHANCER_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
-            "referrer": self._referrer,
         }
         for attempt in range(2):
             try:
-                resp = await self._client.post(
-                    TEXT_URL,
-                    json=payload,
-                    headers=self._headers,
-                    params={"referrer": self._referrer},
-                )
+                resp = await self._client.post(TEXT_URL, json=payload, headers=self._headers)
                 if resp.status_code == 200:
                     data = resp.json()
                     enhanced = data["choices"][0]["message"]["content"].strip()
@@ -153,7 +121,7 @@ class PollinationsClient:
                     if attempt < 1:
                         await asyncio.sleep(1)
                         continue
-                logger.warning("enhance_prompt failed: {} {}", resp.status_code, resp.text[:100])
+                logger.warning("enhance_prompt non-200: status={}", resp.status_code)
                 raise PollinationsError(f"enhance failed: {resp.status_code}")
             except (httpx.TimeoutException, httpx.NetworkError) as e:
                 if attempt < 1:
@@ -161,6 +129,38 @@ class PollinationsClient:
                     continue
                 raise PollinationsError(f"enhance network error: {e}") from e
         raise PollinationsError("enhance exhausted retries")
+
+    def _raise_for_status(self, resp: httpx.Response, *, kind: str) -> None:
+        status = resp.status_code
+        try:
+            payload = resp.json()
+        except Exception:
+            payload = {}
+        err = payload.get("error", {}) if isinstance(payload, dict) else {}
+        code = err.get("code", "")
+        msg = (err.get("message", "") or "").lower()
+
+        if status == 400:
+            if "nsfw" in msg or "moderation" in msg or "safety" in msg or "safety" in code.lower():
+                raise NSFWRejected("moderation_filter")
+            logger.warning("{} 400 code={}", kind, code or "?")
+            raise PollinationsError(f"bad request ({code or '400'})")
+
+        if status in (401, 403):
+            logger.error("{} auth failed: status={}", kind, status)
+            raise PollinationsError(f"auth failed ({status})")
+
+        if status == 402:
+            logger.info("{} payment required: {}", kind, msg[:120])
+            raise PremiumRequired(msg[:200] or "insufficient pollen balance")
+
+        if status == 429:
+            raise QuotaExhausted("rate_limited")
+
+        if 500 <= status < 600:
+            raise PollinationsError(f"server error {status}")
+
+        raise PollinationsError(f"unexpected status {status}")
 
 
 pollinations = PollinationsClient()

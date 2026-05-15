@@ -10,7 +10,7 @@ from loguru import logger
 
 from config import settings
 from utils.aspect_ratios import DEFAULT_RATIO
-from utils.models import DEFAULT_MODEL
+from utils.models import DEFAULT_MODEL, LEGACY_MODEL_REMAP
 
 
 SCHEMA = """
@@ -114,6 +114,16 @@ async def init_db() -> None:
     Path(settings.db_path).parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(settings.db_path) as db:
         await db.executescript(SCHEMA)
+        await db.commit()
+        # Idempotent migration: rename Pollinations model keys that were
+        # deprecated when the API moved to gen.pollinations.ai/v1.
+        for old_key, new_key in LEGACY_MODEL_REMAP.items():
+            cur = await db.execute(
+                "UPDATE users SET model = ? WHERE model = ?",
+                (new_key, old_key),
+            )
+            if cur.rowcount:
+                logger.info("Migrated {} user(s): model {} -> {}", cur.rowcount, old_key, new_key)
         await db.commit()
     logger.info("DB initialized at {}", settings.db_path)
 

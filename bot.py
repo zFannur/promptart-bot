@@ -8,7 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
 
 from config import settings
-from handlers import errors, generation, history, inline, settings as settings_h, start
+from handlers import errors, generation, history, settings as settings_h, start
 from middlewares.i18n import I18nMiddleware
 from middlewares.ratelimit import RateLimitMiddleware
 from services.database import init_db
@@ -39,7 +39,6 @@ async def main() -> None:
     i18n_mw = I18nMiddleware()
     dp.message.middleware(i18n_mw)
     dp.callback_query.middleware(i18n_mw)
-    dp.inline_query.middleware(i18n_mw)
     dp.message.middleware(RateLimitMiddleware(
         limit=settings.rate_limit_per_minute,
         window=60,
@@ -48,7 +47,6 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(settings_h.router)
     dp.include_router(history.router)
-    dp.include_router(inline.router)
     dp.include_router(generation.router)
     dp.include_router(errors.router)
 

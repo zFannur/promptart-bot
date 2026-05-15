@@ -17,6 +17,7 @@ from services.database import (
 from services.pollinations import (
     NSFWRejected,
     PollinationsError,
+    PremiumRequired,
     QuotaExhausted,
     pollinations,
 )
@@ -90,6 +91,10 @@ async def _do_generation(
         )
     except NSFWRejected:
         await progress_msg.edit_text(t(i18n, "generation.nsfw"))
+        return
+    except PremiumRequired:
+        logger.info("premium required for model {}", user.model)
+        await progress_msg.edit_text(t(i18n, "generation.premium_required", model=user.model))
         return
     except QuotaExhausted as e:
         logger.warning("quota exhausted: {}", e)

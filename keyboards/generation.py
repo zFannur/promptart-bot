@@ -10,8 +10,7 @@ def post_gen_kb(gen_id: int, is_fav: bool, i18n: dict[str, str]) -> InlineKeyboa
     kb.button(text=t(i18n, "buttons.enhance"), callback_data=f"enh:{gen_id}")
     fav_label = "✅ " + t(i18n, "buttons.favorite") if is_fav else t(i18n, "buttons.favorite")
     kb.button(text=fav_label, callback_data=f"fav:{gen_id}")
-    kb.button(text=t(i18n, "buttons.share"), switch_inline_query=str(gen_id))
-    kb.adjust(2, 2)
+    kb.adjust(2, 1)
     return kb.as_markup()
 
 

@@ -24,13 +24,13 @@
 
 ## Features
 
-- **Image generation** — 4 models (Flux, Turbo, Seedream-4.0, GPT-Image-2)
+- **Image generation** — 4 models (Flux, Turbo/Zimage, Seedream, GPT-Image-2) via Pollinations `/v1/images/generations`
 - **5 aspect ratios** — 1:1, 16:9, 9:16, 4:3, 3:4
 - **7 style presets** — photorealistic, anime, digital painting, oil, 3D, cyberpunk, sketch
-- **Prompt enhancement** — one-tap improvement via Pollinations Text API
-- **Inline mode** — `@bot prompt` in any chat returns 3 variants
+- **Prompt enhancement** — one-tap improvement via Pollinations `/v1/chat/completions` (OpenAI-compatible)
 - **History & favorites** — last 10 generations, save to favorites for quick re-send
 - **Rate limiting** — built-in protection (5 generations / minute)
+- **Graceful tier handling** — premium models show a clear message instead of crashing when pollen balance is too low
 
 ## Quick start
 
