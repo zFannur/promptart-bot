@@ -1,9 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from services.pollinations import ModelInfo
 from utils.aspect_ratios import RATIOS
 from utils.i18n import t
-from utils.models import MODELS
+from utils.models import format_price
 from utils.styles import STYLES
 
 
@@ -16,13 +17,20 @@ def settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def models_kb(current: str, i18n: dict[str, str]) -> InlineKeyboardMarkup:
+def models_kb(
+    current: str,
+    models: list[ModelInfo],
+    i18n: dict[str, str],
+) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    for m in MODELS:
-        mark = "✅ " if m.key == current else ""
-        kb.button(text=f"{mark}{m.label}", callback_data=f"setval:model:{m.key}")
+    for m in models:
+        mark = "✅ " if m.name == current else ""
+        kb.button(
+            text=f"{mark}{m.name} · {format_price(m.price_pollen)}",
+            callback_data=f"setval:model:{m.name}",
+        )
     kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
-    kb.adjust(2, 2, 1)
+    kb.adjust(1)
     return kb.as_markup()
 
 

@@ -5,17 +5,22 @@ from loguru import logger
 
 from keyboards.settings import models_kb, ratios_kb, settings_menu, styles_kb
 from services.database import get_user, update_user_setting
+from services.pollinations import BalanceUnavailable, ModelInfo, pollinations
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
 from utils.menu import SETTINGS_LABELS
-from utils.models import MODELS_BY_KEY
+from utils.models import format_price
 from utils.styles import STYLES_BY_KEY
 
 router = Router(name=__name__)
 
 
-def _format_settings(user, i18n: dict[str, str]) -> str:
-    model_label = MODELS_BY_KEY[user.model].label if user.model in MODELS_BY_KEY else user.model
+def _format_settings(user, model_by_key: dict[str, ModelInfo], i18n: dict[str, str]) -> str:
+    model_info = model_by_key.get(user.model)
+    model_label = (
+        f"{user.model} · {format_price(model_info.price_pollen)}"
+        if model_info else user.model
+    )
     ratio_label = RATIOS_BY_KEY[user.aspect_ratio].label if user.aspect_ratio in RATIOS_BY_KEY else user.aspect_ratio
     if user.style and user.style in STYLES_BY_KEY:
         s = STYLES_BY_KEY[user.style]
@@ -23,6 +28,20 @@ def _format_settings(user, i18n: dict[str, str]) -> str:
     else:
         style_label = t(i18n, "settings.style_none")
     return t(i18n, "settings.title", model=model_label, ratio=ratio_label, style=style_label)
+
+
+async def _balance_line(i18n: dict[str, str]) -> str:
+    bal = await pollinations.get_balance()
+    if isinstance(bal, BalanceUnavailable):
+        if bal.reason == "missing_permission":
+            return t(i18n, "balance.unavailable_permission")
+        return t(i18n, "balance.unavailable_generic")
+    return t(i18n, "balance.line", balance=format_price(bal))
+
+
+async def _models_index() -> tuple[list[ModelInfo], dict[str, ModelInfo]]:
+    models = await pollinations.list_image_models()
+    return models, {m.name: m for m in models}
 
 
 @router.message(Command("settings"))
@@ -33,7 +52,8 @@ async def open_settings(message: Message, i18n: dict[str, str]) -> None:
     user = await get_user(message.from_user.id)
     if user is None:
         return
-    await message.answer(_format_settings(user, i18n), reply_markup=settings_menu(i18n))
+    _, by_key = await _models_index()
+    await message.answer(_format_settings(user, by_key, i18n), reply_markup=settings_menu(i18n))
 
 
 @router.callback_query(F.data == "set:back")
@@ -44,7 +64,8 @@ async def cb_back(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     user = await get_user(cb.from_user.id)
     if user is None:
         return
-    await cb.message.edit_text(_format_settings(user, i18n), reply_markup=settings_menu(i18n))
+    _, by_key = await _models_index()
+    await cb.message.edit_text(_format_settings(user, by_key, i18n), reply_markup=settings_menu(i18n))
 
 
 @router.callback_query(F.data == "set:model")
@@ -55,7 +76,10 @@ async def cb_pick_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     user = await get_user(cb.from_user.id)
     if user is None:
         return
-    await cb.message.edit_text(t(i18n, "settings.choose_model"), reply_markup=models_kb(user.model, i18n))
+    models, _ = await _models_index()
+    balance_line = await _balance_line(i18n)
+    header = t(i18n, "settings.choose_model_header", balance=balance_line)
+    await cb.message.edit_text(header, reply_markup=models_kb(user.model, models, i18n))
 
 
 @router.callback_query(F.data == "set:ratio")
@@ -86,13 +110,16 @@ async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
         await cb.answer()
         return
     _, field, value = cb.data.split(":", 2)
-    if field == "model" and value not in MODELS_BY_KEY:
+
+    if field == "model":
+        _, by_key = await _models_index()
+        if value not in by_key:
+            await cb.answer()
+            return
+    elif field == "ratio" and value not in RATIOS_BY_KEY:
         await cb.answer()
         return
-    if field == "ratio" and value not in RATIOS_BY_KEY:
-        await cb.answer()
-        return
-    if field == "style" and value != "none" and value not in STYLES_BY_KEY:
+    elif field == "style" and value != "none" and value not in STYLES_BY_KEY:
         await cb.answer()
         return
 
@@ -109,4 +136,5 @@ async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     user = await get_user(cb.from_user.id)
     if user is None:
         return
-    await cb.message.edit_text(_format_settings(user, i18n), reply_markup=settings_menu(i18n))
+    _, by_key = await _models_index()
+    await cb.message.edit_text(_format_settings(user, by_key, i18n), reply_markup=settings_menu(i18n))

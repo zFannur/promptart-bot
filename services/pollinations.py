@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import random
+import time
+from dataclasses import dataclass
 
 import httpx
 from loguru import logger
@@ -10,6 +12,25 @@ from config import settings
 BASE_URL = "https://gen.pollinations.ai"
 IMAGE_URL = f"{BASE_URL}/v1/images/generations"
 TEXT_URL = f"{BASE_URL}/v1/chat/completions"
+MODELS_URL = f"{BASE_URL}/models"
+BALANCE_URL = f"{BASE_URL}/account/balance"
+
+MODELS_CACHE_TTL_SEC = 600  # 10 min
+
+
+@dataclass(frozen=True)
+class ModelInfo:
+    name: str
+    description: str
+    price_pollen: float  # per single image, derived from completionImageTokens
+    supports_image_input: bool  # True = supports img2img / edits
+    aliases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class BalanceUnavailable:
+    """Marker — key lacks 'profile usage' permission so balance can't be read."""
+    reason: str
 
 ENHANCER_SYSTEM_PROMPT = (
     "You are an expert prompt engineer for image generation models. "
@@ -43,9 +64,102 @@ class PollinationsClient:
             follow_redirects=True,
         )
         self._headers = {"Authorization": f"Bearer {settings.pollinations_api_key}"}
+        self._models_cache: tuple[float, list[ModelInfo]] | None = None
+        self._models_lock = asyncio.Lock()
 
     async def close(self) -> None:
         await self._client.aclose()
+
+    async def list_image_models(self, force_refresh: bool = False) -> list[ModelInfo]:
+        """Image-output models with pricing, sorted by price ascending.
+
+        Cached for MODELS_CACHE_TTL_SEC. Falls back to a hardcoded baseline if
+        the API is unreachable.
+        """
+        now = time.monotonic()
+        if not force_refresh and self._models_cache is not None:
+            ts, cached = self._models_cache
+            if now - ts < MODELS_CACHE_TTL_SEC:
+                return cached
+
+        async with self._models_lock:
+            # Re-check after acquiring the lock to avoid duplicate fetches.
+            if not force_refresh and self._models_cache is not None:
+                ts, cached = self._models_cache
+                if now - ts < MODELS_CACHE_TTL_SEC:
+                    return cached
+
+            try:
+                resp = await self._client.get(MODELS_URL, headers=self._headers)
+                resp.raise_for_status()
+                raw = resp.json()
+            except Exception as e:
+                logger.warning("list_image_models fetch failed: {}", e)
+                if self._models_cache is not None:
+                    return self._models_cache[1]
+                return _FALLBACK_IMAGE_MODELS
+
+            models: list[ModelInfo] = []
+            for entry in raw if isinstance(raw, list) else []:
+                if not isinstance(entry, dict):
+                    continue
+                if "image" not in entry.get("output_modalities", []):
+                    continue
+                pricing = entry.get("pricing") or {}
+                # Heuristic from polli SKILL.md: if the pricing object has
+                # *any* prompt* token fields, the completionImageTokens value
+                # is per-token (~1000 tokens for a 1024×1024 image). Otherwise
+                # it's flat per-image (flux=0.001, zimage=0.002, etc).
+                price_raw = pricing.get("completionImageTokens")
+                try:
+                    price = float(price_raw) if price_raw is not None else 0.0
+                except (TypeError, ValueError):
+                    price = 0.0
+                is_token_priced = any(
+                    k for k in pricing
+                    if k.startswith("prompt") and k != "currency"
+                )
+                if is_token_priced:
+                    price *= 1000  # estimate for one 1024×1024 image
+
+                models.append(
+                    ModelInfo(
+                        name=entry.get("name", ""),
+                        description=(entry.get("description") or "").strip(),
+                        price_pollen=price,
+                        supports_image_input="image" in entry.get("input_modalities", []),
+                        aliases=tuple(entry.get("aliases") or ()),
+                    )
+                )
+
+            if not models:
+                logger.warning("/models returned 0 image models; using fallback")
+                models = list(_FALLBACK_IMAGE_MODELS)
+
+            models.sort(key=lambda m: (m.price_pollen, m.name))
+            self._models_cache = (now, models)
+            return models
+
+    async def get_balance(self) -> float | BalanceUnavailable:
+        """Returns current pollen balance, or BalanceUnavailable if the key
+        lacks the 'profile usage' permission (403) or the call fails."""
+        try:
+            resp = await self._client.get(BALANCE_URL, headers=self._headers)
+        except (httpx.TimeoutException, httpx.NetworkError) as e:
+            return BalanceUnavailable(f"network: {e}")
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                return float(data.get("balance", 0))
+            except Exception as e:
+                return BalanceUnavailable(f"parse: {e}")
+
+        if resp.status_code == 403:
+            return BalanceUnavailable("missing_permission")
+        if resp.status_code == 401:
+            return BalanceUnavailable("unauthorized")
+        return BalanceUnavailable(f"http_{resp.status_code}")
 
     async def generate_image(
         self,
@@ -162,5 +276,15 @@ class PollinationsClient:
 
         raise PollinationsError(f"unexpected status {status}")
 
+
+# Used if /models is unreachable at boot. Prices verified 2026-05.
+_FALLBACK_IMAGE_MODELS: tuple[ModelInfo, ...] = (
+    ModelInfo("flux", "Flux Schnell — fast high-quality", 0.001, False),
+    ModelInfo("zimage", "Z-Image Turbo — fast 6B Flux", 0.002, False),
+    ModelInfo("klein", "FLUX.2 Klein 4B — fast gen & edits", 0.01, True),
+    ModelInfo("kontext", "FLUX.1 Kontext — in-context editing", 0.04, True),
+    ModelInfo("qwen-image", "Qwen Image Plus — Alibaba", 0.045, True),
+    ModelInfo("wan-image", "Wan 2.7 — Alibaba up to 2K", 0.0525, True),
+)
 
 pollinations = PollinationsClient()

@@ -10,6 +10,7 @@ def main_menu(i18n: dict[str, str]) -> ReplyKeyboardMarkup:
     kb.button(text=t(i18n, "menu.settings"))
     kb.button(text=t(i18n, "menu.history"))
     kb.button(text=t(i18n, "menu.favorites"))
+    kb.button(text=t(i18n, "menu.balance"))
     kb.button(text=t(i18n, "menu.help"))
-    kb.adjust(2, 2, 1)
+    kb.adjust(2, 2, 2)
     return kb.as_markup(resize_keyboard=True)

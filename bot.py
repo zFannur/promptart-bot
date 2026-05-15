@@ -8,7 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
 
 from config import settings
-from handlers import errors, generation, history, settings as settings_h, start
+from handlers import balance, errors, generation, history, settings as settings_h, start
 from middlewares.i18n import I18nMiddleware
 from middlewares.ratelimit import RateLimitMiddleware
 from services.database import init_db
@@ -47,6 +47,7 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(settings_h.router)
     dp.include_router(history.router)
+    dp.include_router(balance.router)
     dp.include_router(generation.router)
     dp.include_router(errors.router)
 
