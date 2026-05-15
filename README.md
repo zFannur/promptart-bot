@@ -15,12 +15,17 @@
 ## Screenshots
 
 <p align="center">
-  <img src="assets/screenshots/01-main.png" width="240" alt="Main menu" />
-  <img src="assets/screenshots/02-generation.png" width="240" alt="Generation result" />
-  <img src="assets/screenshots/03-settings.png" width="240" alt="Settings" />
+  <img src="assets/screenshots/01-main.png" width="240" alt="Main menu — 7 buttons, bot description" />
+  <img src="assets/screenshots/02-generation.png" width="240" alt="Generated image with Again/Enhance/Edit/Favorite buttons" />
+  <img src="assets/screenshots/03-settings.png" width="240" alt="Settings — model, edit model, size, style" />
 </p>
 <p align="center">
-  <img src="assets/screenshots/04-favorites.png" width="240" alt="Favorites with previews" />
+  <img src="assets/screenshots/05-edit-flow.png" width="240" alt="Edit flow — input photo + prompt + result" />
+  <img src="assets/screenshots/06-balance.png" width="240" alt="Balance with 24h usage counter" />
+  <img src="assets/screenshots/07-history.png" width="240" alt="History with photo previews and inline buttons" />
+</p>
+<p align="center">
+  <img src="assets/screenshots/04-favorites.png" width="240" alt="Favorites with full post-gen keyboard" />
 </p>
 
 ## Features
