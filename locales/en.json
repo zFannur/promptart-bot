@@ -19,7 +19,7 @@
   "generation.rate_limit": "⏳ Wait {sec}s before the next generation.",
   "generation.daily_limit": "📊 Daily limit reached ({limit} generations). Come back tomorrow or use /upgrade.",
   "generation.empty_prompt": "Prompt can't be empty. Describe the image.",
-  "generation.too_long": "Prompt too long. Keep it under 500 characters.",
+  "generation.too_long": "Prompt too long. Keep it under 4000 characters.",
   "generation.premium_required": "💰 The <b>{model}</b> model requires more pollen than your account has. Switch to <b>flux</b> or <b>zimage</b> in /settings.",
   "video.ask_prompt": "✍️ Describe what video to generate (e.g. 'cat running in rain'):",
   "video.in_progress": "🎥 Generating video (takes up to 1-2 minutes)…",

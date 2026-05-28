@@ -48,7 +48,7 @@ from utils.menu import EDIT_LABELS
 router = Router(name=__name__)
 
 MAX_PHOTOS = 4
-MAX_PROMPT_LEN = 500
+MAX_PROMPT_LEN = 4000
 
 
 # ──────────────────────────── entry points ─────────────────────────────

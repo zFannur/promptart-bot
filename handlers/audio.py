@@ -23,7 +23,7 @@ from utils.menu import CREATE_AUDIO_LABELS
 
 router = Router(name=__name__)
 
-MAX_TEXT_LEN = 1000
+MAX_TEXT_LEN = 4000
 
 
 @router.message(F.text.in_(CREATE_AUDIO_LABELS))

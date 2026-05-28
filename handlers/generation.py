@@ -30,7 +30,7 @@ from utils.styles import apply_style
 
 router = Router(name=__name__)
 
-MAX_PROMPT_LEN = 500
+MAX_PROMPT_LEN = 4000
 
 
 @router.message(F.text.in_(CREATE_IMAGE_LABELS))

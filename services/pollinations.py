@@ -2,6 +2,7 @@ import asyncio
 import base64
 import random
 import time
+import urllib.parse
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -452,54 +453,51 @@ class PollinationsClient:
         seconds: int = 5,
         seed: int | None = None,
     ) -> tuple[bytes, int]:
-        """Returns (video_bytes, used_seed) via gen.pollinations.ai/v1/videos/generations."""
+        """Returns (video_bytes, used_seed) via GET gen.pollinations.ai/video/{prompt}."""
         if seed is None:
             seed = random.randint(0, 2**31 - 1)
 
-        body = {
-            "prompt": prompt,
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"{BASE_URL}/video/{encoded_prompt}"
+        params = {
             "model": model,
-            "size": f"{width}x{height}",
-            "seconds": seconds,
-            "response_format": "b64_json",
+            "width": width,
+            "height": height,
+            "duration": seconds,
             "seed": seed,
         }
 
-        # Video generation takes longer, so we need a larger timeout.
-        client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0), follow_redirects=True)
-        try:
-            last_exc: Exception | None = None
-            for attempt in range(3):
-                try:
-                    resp = await client.post(VIDEO_URL, json=body, headers=self._headers)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        b64 = data.get("data", [{}])[0].get("b64_json")
-                        if not b64:
-                            raise PollinationsError("response missing b64_json")
-                        video_bytes = base64.b64decode(b64)
-                        if len(video_bytes) < 100:
-                            raise PollinationsError("decoded video too small")
-                        return video_bytes, seed
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = await self._client.get(
+                    url,
+                    params=params,
+                    headers=self._headers,
+                    timeout=httpx.Timeout(300.0, connect=10.0),
+                )
+                if resp.status_code == 200:
+                    video_bytes = resp.content
+                    if len(video_bytes) < 100:
+                        raise PollinationsError("returned video too small")
+                    return video_bytes, seed
 
-                    self._raise_for_status(resp, kind="video")
+                self._raise_for_status(resp, kind="video")
 
-                except (NSFWRejected, QuotaExhausted, PremiumRequired):
-                    raise
-                except PollinationsError as e:
-                    if attempt < 2 and "server error" in str(e):
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    raise
-                except (httpx.TimeoutException, httpx.NetworkError) as e:
-                    last_exc = e
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    raise PollinationsError(f"network error: {e}") from e
-            raise PollinationsError(str(last_exc) if last_exc else "exhausted retries")
-        finally:
-            await client.aclose()
+            except (NSFWRejected, QuotaExhausted, PremiumRequired):
+                raise
+            except PollinationsError as e:
+                if attempt < 2 and "server error" in str(e):
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError) as e:
+                last_exc = e
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                raise PollinationsError(f"network error: {e}") from e
+        raise PollinationsError(str(last_exc) if last_exc else "exhausted retries")
 
     async def generate_audio(
         self,
