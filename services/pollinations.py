@@ -285,32 +285,43 @@ class PollinationsClient:
         height: int = 1024,
         model: str = "flux",
         seed: int | None = None,
+        quality: str | None = None,
+        transparent: bool | None = None,
+        negative_prompt: str | None = None,
     ) -> tuple[bytes, int]:
-        """Returns (image_bytes, used_seed) via gen.pollinations.ai/v1/images/generations."""
+        """Returns (image_bytes, used_seed) via GET gen.pollinations.ai/image/{prompt}."""
         if seed is None:
             seed = random.randint(0, 2**31 - 1)
 
-        body = {
-            "prompt": prompt,
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"{BASE_URL}/image/{encoded_prompt}"
+        params = {
             "model": model,
-            "size": f"{width}x{height}",
-            "response_format": "b64_json",
+            "width": width,
+            "height": height,
             "seed": seed,
-            "nologo": True,
+            "nologo": "true",
         }
+        if quality:
+            params["quality"] = quality
+        if transparent:
+            params["transparent"] = "true"
+        if negative_prompt:
+            params["negative_prompt"] = negative_prompt
 
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
-                resp = await self._client.post(IMAGE_URL, json=body, headers=self._headers)
+                resp = await self._client.get(
+                    url,
+                    params=params,
+                    headers=self._headers,
+                    timeout=httpx.Timeout(90.0, connect=10.0),
+                )
                 if resp.status_code == 200:
-                    data = resp.json()
-                    b64 = data.get("data", [{}])[0].get("b64_json")
-                    if not b64:
-                        raise PollinationsError("response missing b64_json")
-                    image_bytes = base64.b64decode(b64)
+                    image_bytes = resp.content
                     if len(image_bytes) < 100:
-                        raise PollinationsError("decoded image too small")
+                        raise PollinationsError("returned image too small")
                     return image_bytes, seed
 
                 self._raise_for_status(resp, kind="image")
@@ -318,7 +329,6 @@ class PollinationsClient:
             except (NSFWRejected, QuotaExhausted, PremiumRequired):
                 raise
             except PollinationsError as e:
-                # 5xx already retried inside _raise_for_status path; surface other 4xx immediately
                 if attempt < 2 and "server error" in str(e):
                     await asyncio.sleep(2 ** attempt)
                     continue

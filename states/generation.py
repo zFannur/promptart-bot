@@ -14,3 +14,9 @@ class EditStates(StatesGroup):
     # data['photos'] until a text message arrives — that text is the prompt
     # and triggers the edit call.
     collecting = State()
+
+
+class PromptStates(StatesGroup):
+    waiting_for_title = State()
+    waiting_for_subject = State()
+    waiting_for_builder_subject = State()

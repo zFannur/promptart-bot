@@ -1,0 +1,16 @@
+24: 8. [Баланс и usage — `/account/balance`, `/account/usage`](#8-баланс-и-usage--accountbalance-accountusage)
+111: BALANCE_URL  = f"{BASE_URL}/account/balance"
+544: ## 8. Баланс и usage — `/account/balance`, `/account/usage`
+555: class BalanceUnavailable:
+558: async def get_balance(self) -> float | BalanceUnavailable:
+560:         resp = await self._client.get(BALANCE_URL, headers=self._headers)
+562:         return BalanceUnavailable(f"network: {e}")
+566:             return float(resp.json().get("balance", 0))
+568:             return BalanceUnavailable(f"parse: {e}")
+570:         return BalanceUnavailable("missing_permission")
+572:         return BalanceUnavailable("unauthorized")
+573:     return BalanceUnavailable(f"http_{resp.status_code}")
+754: { "message": "Insufficient balance...", "code": "PAYMENT_REQUIRED", "status": 402 }
+790:         raise PremiumRequired(msg_raw[:200] or "insufficient pollen balance")
+872: модели с балансом (`/models` + `/account/balance`) и показывайте
+947: Порядок include роутеров в `bot.py`: `start, settings, history, balance,

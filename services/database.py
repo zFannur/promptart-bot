@@ -33,7 +33,9 @@ CREATE TABLE IF NOT EXISTS users (
     video_duration INTEGER DEFAULT 5,
     audio_model TEXT DEFAULT 'openai-audio',
     audio_voice TEXT DEFAULT 'nova',
-    text_model TEXT DEFAULT 'openai'
+    text_model TEXT DEFAULT 'openai',
+    image_quality TEXT DEFAULT 'medium',
+    image_transparent INTEGER DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_tg ON users(telegram_id);
@@ -85,6 +87,8 @@ class User:
     audio_model: str = 'openai-audio'
     audio_voice: str = 'nova'
     text_model: str = 'openai'
+    image_quality: str = 'medium'
+    image_transparent: int = 0
 
 
 @dataclass
@@ -111,6 +115,8 @@ def _row_to_user(row: aiosqlite.Row) -> User:
     audio_model = row["audio_model"] if "audio_model" in keys else "openai-audio"
     audio_voice = row["audio_voice"] if "audio_voice" in keys else "nova"
     text_model = row["text_model"] if "text_model" in keys else "openai"
+    image_quality = row["image_quality"] if "image_quality" in keys else "medium"
+    image_transparent = row["image_transparent"] if "image_transparent" in keys else 0
     return User(
         id=row["id"],
         telegram_id=row["telegram_id"],
@@ -127,6 +133,8 @@ def _row_to_user(row: aiosqlite.Row) -> User:
         audio_model=audio_model,
         audio_voice=audio_voice,
         text_model=text_model,
+        image_quality=image_quality,
+        image_transparent=image_transparent,
     )
 
 
@@ -177,13 +185,29 @@ async def init_db() -> None:
             logger.info("Added edit_model column (default {})", DEFAULT_EDIT_MODEL)
 
         # Migration for video, audio, text settings columns
+        # Create saved_prompts table if not exists
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS saved_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                prompt_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+
         new_columns = {
             "video_model": "TEXT DEFAULT 'ltx-2'",
             "video_aspect_ratio": "TEXT DEFAULT '16:9'",
             "video_duration": "INTEGER DEFAULT 5",
             "audio_model": "TEXT DEFAULT 'openai-audio'",
             "audio_voice": "TEXT DEFAULT 'nova'",
-            "text_model": "TEXT DEFAULT 'openai'"
+            "text_model": "TEXT DEFAULT 'openai'",
+            "image_quality": "TEXT DEFAULT 'medium'",
+            "image_transparent": "INTEGER DEFAULT 0"
         }
         for col_name, col_def in new_columns.items():
             if col_name not in existing_cols:
@@ -267,7 +291,8 @@ async def update_user_setting(telegram_id: int, field: str, value: Any) -> None:
     allowed_fields = {
         "model", "edit_model", "aspect_ratio", "style", "language",
         "video_model", "video_aspect_ratio", "video_duration",
-        "audio_model", "audio_voice", "text_model"
+        "audio_model", "audio_voice", "text_model",
+        "image_quality", "image_transparent"
     }
     if field not in allowed_fields:
         raise ValueError(f"unsupported field: {field}")
@@ -381,3 +406,43 @@ async def list_user_favorites(user_id: int, limit: int = 10) -> list[Generation]
         )
         rows = await cur.fetchall()
         return [_row_to_gen(r) for r in rows]
+
+
+async def save_user_prompt(user_id: int, title: str, prompt_text: str) -> int:
+    async with _connect() as db:
+        cur = await db.execute(
+            "INSERT INTO saved_prompts (user_id, title, prompt_text) VALUES (?, ?, ?)",
+            (user_id, title, prompt_text),
+        )
+        await db.commit()
+        return cur.lastrowid
+
+
+async def list_user_prompts(user_id: int) -> list[dict[str, Any]]:
+    async with _connect() as db:
+        cur = await db.execute(
+            "SELECT id, title, prompt_text, created_at FROM saved_prompts WHERE user_id = ? ORDER BY created_at DESC",
+            (user_id,),
+        )
+        rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+
+async def delete_user_prompt(user_id: int, prompt_id: int) -> bool:
+    async with _connect() as db:
+        cur = await db.execute(
+            "DELETE FROM saved_prompts WHERE user_id = ? AND id = ?",
+            (user_id, prompt_id),
+        )
+        await db.commit()
+        return cur.rowcount > 0
+
+
+async def get_user_prompt(user_id: int, prompt_id: int) -> dict[str, Any] | None:
+    async with _connect() as db:
+        cur = await db.execute(
+            "SELECT id, title, prompt_text, created_at FROM saved_prompts WHERE user_id = ? AND id = ?",
+            (user_id, prompt_id),
+        )
+        row = await cur.fetchone()
+        return dict(row) if row else None

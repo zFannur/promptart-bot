@@ -3,7 +3,7 @@ from functools import lru_cache
 from pathlib import Path
 
 LOCALES_DIR = Path(__file__).parent.parent / "locales"
-SUPPORTED_LANGS: tuple[str, ...] = ("en",)
+SUPPORTED_LANGS: tuple[str, ...] = ("en", "ru")
 DEFAULT_LANG = "en"
 
 
@@ -17,6 +17,10 @@ def load_locale(lang: str = DEFAULT_LANG) -> dict[str, str]:
 
 
 def detect_lang(language_code: str | None) -> str:
+    if language_code:
+        lang = language_code.lower()[:2]
+        if lang in SUPPORTED_LANGS:
+            return lang
     return DEFAULT_LANG
 
 

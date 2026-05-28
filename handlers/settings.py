@@ -15,6 +15,8 @@ from keyboards.settings import (
     video_ratios_kb,
     video_durations_kb,
     audio_voices_kb,
+    image_quality_kb,
+    image_transparent_kb,
 )
 from services.database import get_user, update_user_setting
 from services.pollinations import BalanceUnavailable, ModelInfo, pollinations
@@ -154,7 +156,7 @@ async def cb_image_menu(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     if user is None:
         return
     by_key = await _all_models_index()
-    await cb.message.edit_text(_format_settings(user, by_key, i18n, "image"), reply_markup=image_settings_menu(i18n))
+    await cb.message.edit_text(_format_settings(user, by_key, i18n, "image"), reply_markup=image_settings_menu(i18n, user.model))
 
 
 @router.callback_query(F.data == "set:video_menu")
@@ -337,6 +339,38 @@ async def cb_pick_text_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     )
 
 
+@router.callback_query(F.data == "set:image_quality")
+async def cb_pick_image_quality(cb: CallbackQuery, i18n: dict[str, str]) -> None:
+    await cb.answer()
+    if cb.from_user is None or cb.message is None:
+        return
+    user = await get_user(cb.from_user.id)
+    if user is None:
+        return
+    balance_line = await _balance_line(i18n)
+    header = t(i18n, "settings.choose_image_quality", balance=balance_line)
+    await cb.message.edit_text(
+        header,
+        reply_markup=image_quality_kb(user.image_quality or "medium", i18n),
+    )
+
+
+@router.callback_query(F.data == "set:image_transparent")
+async def cb_pick_image_transparent(cb: CallbackQuery, i18n: dict[str, str]) -> None:
+    await cb.answer()
+    if cb.from_user is None or cb.message is None:
+        return
+    user = await get_user(cb.from_user.id)
+    if user is None:
+        return
+    balance_line = await _balance_line(i18n)
+    header = t(i18n, "settings.choose_image_transparent", balance=balance_line)
+    await cb.message.edit_text(
+        header,
+        reply_markup=image_transparent_kb(user.image_transparent or 0, i18n),
+    )
+
+
 @router.callback_query(F.data.startswith("setval:"))
 async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     if cb.from_user is None or cb.message is None or cb.data is None:
@@ -390,6 +424,18 @@ async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
             await cb.answer()
             return
         back_menu = "text"
+    elif field == "image_quality":
+        if value not in ("medium", "high", "hd"):
+            await cb.answer()
+            return
+        back_menu = "image"
+    elif field == "image_transparent":
+        try:
+            value = int(value)
+        except ValueError:
+            await cb.answer()
+            return
+        back_menu = "image"
     else:
         await cb.answer()
         return
@@ -410,7 +456,7 @@ async def cb_set_value(cb: CallbackQuery, i18n: dict[str, str]) -> None:
         
     all_by_key = await _all_models_index()
     if back_menu == "image":
-        await cb.message.edit_text(_format_settings(user, all_by_key, i18n, "image"), reply_markup=image_settings_menu(i18n))
+        await cb.message.edit_text(_format_settings(user, all_by_key, i18n, "image"), reply_markup=image_settings_menu(i18n, user.model))
     elif back_menu == "video":
         await cb.message.edit_text(_format_settings(user, all_by_key, i18n, "video"), reply_markup=video_settings_menu(i18n))
     elif back_menu == "audio":

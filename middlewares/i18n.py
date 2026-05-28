@@ -14,14 +14,18 @@ class I18nMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: dict[str, Any],
     ) -> Any:
+        lang = DEFAULT_LANG
         user: User | None = data.get("event_from_user")
         if user is not None:
             stored = await get_user_lang(user.id)
             if stored is None:
+                lang = detect_lang(user.language_code)
                 await upsert_user(
                     telegram_id=user.id,
                     username=user.username,
-                    language=detect_lang(user.language_code),
+                    language=lang,
                 )
-        data["i18n"] = load_locale(DEFAULT_LANG)
+            else:
+                lang = stored
+        data["i18n"] = load_locale(lang)
         return await handler(event, data)

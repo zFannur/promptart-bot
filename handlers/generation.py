@@ -4,7 +4,7 @@ from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from loguru import logger
 
 from handlers.edit import run_edit_with_sources
-from keyboards.generation import confirm_enhance_kb, post_gen_kb
+from keyboards.generation import confirm_enhance_kb, post_gen_kb, prompt_options_kb
 from keyboards.main import main_menu
 from services.database import (
     add_favorite,
@@ -36,7 +36,7 @@ MAX_PROMPT_LEN = 4000
 @router.message(F.text.in_(CREATE_IMAGE_LABELS))
 async def ask_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     await state.set_state(GenStates.waiting_for_prompt)
-    await message.answer(t(i18n, "generation.ask_prompt"))
+    await message.answer(t(i18n, "generation.ask_prompt"), reply_markup=prompt_options_kb(i18n))
 
 
 @router.message(GenStates.waiting_for_prompt, F.text)
@@ -75,20 +75,47 @@ async def _do_generation(
         await bot.send_message(chat_id, t(i18n, "errors.generic"))
         return
 
-    ratio = RATIOS_BY_KEY.get(user.aspect_ratio)
-    if ratio is None:
-        await bot.send_message(chat_id, t(i18n, "errors.generic"))
-        return
+    from utils.prompt_builder import parse_midjourney_flags
+    cleaned_prompt, overrides = parse_midjourney_flags(prompt)
 
-    final_prompt = apply_style(prompt, user.style)
+    ar_key = overrides.get("aspect_ratio", user.aspect_ratio)
+    ratio = RATIOS_BY_KEY.get(ar_key)
+    if ratio is None:
+        if ":" in ar_key:
+            try:
+                w_h = ar_key.split(":")
+                w, h = int(w_h[0]), int(w_h[1])
+                if w > 0 and h > 0:
+                    scale = min(1024 / w, 1024 / h)
+                    width = int(w * scale)
+                    height = int(h * scale)
+                    width = max(256, (width // 8) * 8)
+                    height = max(256, (height // 8) * 8)
+                else:
+                    ratio = RATIOS_BY_KEY.get(user.aspect_ratio)
+                    width, height = ratio.width, ratio.height
+            except Exception:
+                ratio = RATIOS_BY_KEY.get(user.aspect_ratio)
+                width, height = ratio.width, ratio.height
+        else:
+            ratio = RATIOS_BY_KEY.get(user.aspect_ratio)
+            width, height = ratio.width, ratio.height
+    else:
+        width, height = ratio.width, ratio.height
+
+    final_prompt = apply_style(cleaned_prompt, user.style)
     progress_msg = await bot.send_message(chat_id, t(i18n, "generation.in_progress"))
     try:
         await bot.send_chat_action(chat_id, "upload_photo")
         image_bytes, seed = await pollinations.generate_image(
             final_prompt,
-            width=ratio.width,
-            height=ratio.height,
+            width=width,
+            height=height,
             model=user.model,
+            seed=overrides.get("seed"),
+            quality=user.image_quality,
+            transparent=bool(user.image_transparent),
+            negative_prompt=overrides.get("negative_prompt"),
         )
     except NSFWRejected:
         await progress_msg.edit_text(t(i18n, "generation.nsfw"))
@@ -111,7 +138,7 @@ async def _do_generation(
         prompt=prompt,
         enhanced_prompt=None,
         model=user.model,
-        aspect_ratio=user.aspect_ratio,
+        aspect_ratio=overrides.get("aspect_ratio", user.aspect_ratio),
         style=user.style,
         seed=seed,
         file_id=None,

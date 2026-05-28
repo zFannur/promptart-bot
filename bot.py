@@ -10,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
 
 from config import settings
-from handlers import balance, edit, errors, generation, history, settings as settings_h, start, video, audio, chat
+from handlers import balance, edit, errors, generation, history, settings as settings_h, start, video, audio, chat, prompts
 from middlewares.i18n import I18nMiddleware
 from middlewares.ratelimit import RateLimitMiddleware
 from services.database import init_db
@@ -85,6 +85,7 @@ async def main() -> None:
     dp.include_router(video.router)
     dp.include_router(audio.router)
     dp.include_router(chat.router)
+    dp.include_router(prompts.router)
     dp.include_router(generation.router)
     dp.include_router(errors.router)
 
