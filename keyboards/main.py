@@ -18,3 +18,11 @@ def main_menu(i18n: dict[str, str]) -> ReplyKeyboardMarkup:
     kb.button(text=t(i18n, "menu.help"))
     kb.adjust(2, 2, 2, 2, 2)
     return kb.as_markup(resize_keyboard=True)
+
+
+def chat_keyboard(i18n: dict[str, str]) -> ReplyKeyboardMarkup:
+    kb = ReplyKeyboardBuilder()
+    kb.button(text=t(i18n, "menu.clear_context"))
+    kb.button(text=t(i18n, "menu.back_to_menu"))
+    kb.adjust(1, 1)
+    return kb.as_markup(resize_keyboard=True)

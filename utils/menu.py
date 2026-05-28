@@ -15,6 +15,8 @@ HISTORY_LABELS = _labels("menu.history")
 FAVORITES_LABELS = _labels("menu.favorites")
 BALANCE_LABELS = _labels("menu.balance")
 HELP_LABELS = _labels("menu.help")
+CLEAR_CONTEXT_LABELS = _labels("menu.clear_context")
+BACK_TO_MENU_LABELS = _labels("menu.back_to_menu")
 
 # Union of all menu reply-button labels. Useful in stateful handlers that
 # need to ignore inputs that are actually menu navigation, not content.
@@ -29,4 +31,6 @@ ALL_MENU_LABELS = (
     | FAVORITES_LABELS
     | BALANCE_LABELS
     | HELP_LABELS
+    | CLEAR_CONTEXT_LABELS
+    | BACK_TO_MENU_LABELS
 )

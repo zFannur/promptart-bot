@@ -537,20 +537,25 @@ class PollinationsClient:
 
     async def generate_text(
         self,
-        prompt: str,
+        prompt: str | None = None,
         *,
+        messages: list[dict[str, str]] | None = None,
         model: str = "openai",
         system_prompt: str | None = None,
     ) -> str:
         """Returns text completion response via gen.pollinations.ai/v1/chat/completions."""
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
+        payload_messages = []
+        if messages:
+            payload_messages.extend(messages)
+        else:
+            if system_prompt:
+                payload_messages.append({"role": "system", "content": system_prompt})
+            if prompt:
+                payload_messages.append({"role": "user", "content": prompt})
         
         payload = {
             "model": model,
-            "messages": messages,
+            "messages": payload_messages,
         }
         for attempt in range(3):
             try:
