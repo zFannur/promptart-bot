@@ -4,6 +4,9 @@ from aiogram.fsm.state import State, StatesGroup
 class GenStates(StatesGroup):
     waiting_for_prompt = State()
     confirming_enhanced = State()
+    waiting_for_video_prompt = State()
+    waiting_for_audio_prompt = State()
+    waiting_for_chat_prompt = State()
 
 
 class EditStates(StatesGroup):

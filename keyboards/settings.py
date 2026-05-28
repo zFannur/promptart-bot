@@ -10,10 +10,48 @@ from utils.styles import STYLES
 
 def settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text=t(i18n, "settings.model"), callback_data="set:model")
-    kb.button(text=t(i18n, "settings.edit_model"), callback_data="set:edit_model")
-    kb.button(text=t(i18n, "settings.ratio"), callback_data="set:ratio")
-    kb.button(text=t(i18n, "settings.style"), callback_data="set:style")
+    kb.button(text="🎨 Image Settings", callback_data="set:image_menu")
+    kb.button(text="🎥 Video Settings", callback_data="set:video_menu")
+    kb.button(text="🔊 Audio Settings", callback_data="set:audio_menu")
+    kb.button(text="💬 Chat Settings", callback_data="set:text_menu")
+    kb.adjust(2, 2)
+    return kb.as_markup()
+
+
+def image_settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🤖 Image Model", callback_data="set:model")
+    kb.button(text="📐 Aspect Ratio", callback_data="set:ratio")
+    kb.button(text="🎨 Style", callback_data="set:style")
+    kb.button(text="🛠 Edit Model", callback_data="set:edit_model")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.adjust(2, 2, 1)
+    return kb.as_markup()
+
+
+def video_settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🤖 Video Model", callback_data="set:video_model")
+    kb.button(text="📐 Aspect Ratio", callback_data="set:video_ratio")
+    kb.button(text="⏱ Duration", callback_data="set:video_duration")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def audio_settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🤖 Audio Model", callback_data="set:audio_model")
+    kb.button(text="🗣 Voice", callback_data="set:audio_voice")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def text_settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🤖 Chat Model", callback_data="set:text_model")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
     kb.adjust(1)
     return kb.as_markup()
 
@@ -24,23 +62,28 @@ def models_kb(
     i18n: dict[str, str],
     *,
     field: str = "model",
+    back_route: str = "set:image_menu",
 ) -> InlineKeyboardMarkup:
-    """Render a picker for any model field (model / edit_model).
-
-    Pass `field="edit_model"` to render the same picker but with callback
-    data that targets the edit-model column. The caller is responsible for
-    filtering the `models` list (e.g. only image-input-capable models for
-    the edit picker).
-    """
     kb = InlineKeyboardBuilder()
     for m in models:
         mark = "✅ " if m.name == current else ""
         paid_tag = " [paid]" if getattr(m, "paid_only", False) else ""
+        
+        # Format the price based on modality / unit
+        if "video" in field:
+            price_str = f"{format_price(m.price_pollen)}/s"
+        elif "audio" in field:
+            price_str = f"{format_price(m.price_pollen)}/s"
+        elif "text" in field:
+            price_str = f"{format_price(m.price_pollen)}/1K"
+        else:
+            price_str = format_price(m.price_pollen)
+            
         kb.button(
-            text=f"{mark}{m.name}{paid_tag} · {format_price(m.price_pollen)}",
+            text=f"{mark}{m.name}{paid_tag} · {price_str}",
             callback_data=f"setval:{field}:{m.name}",
         )
-    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.button(text=t(i18n, "buttons.back"), callback_data=back_route)
     kb.adjust(1)
     return kb.as_markup()
 
@@ -50,7 +93,7 @@ def ratios_kb(current: str, i18n: dict[str, str]) -> InlineKeyboardMarkup:
     for r in RATIOS:
         mark = "✅ " if r.key == current else ""
         kb.button(text=f"{mark}{r.label}", callback_data=f"setval:ratio:{r.key}")
-    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:image_menu")
     kb.adjust(3, 2, 1)
     return kb.as_markup()
 
@@ -62,6 +105,36 @@ def styles_kb(current: str | None, i18n: dict[str, str]) -> InlineKeyboardMarkup
     for s in STYLES:
         mark = "✅ " if s.key == current else ""
         kb.button(text=f"{mark}{s.emoji} {t(i18n, s.label_key)}", callback_data=f"setval:style:{s.key}")
-    kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:image_menu")
     kb.adjust(1)
+    return kb.as_markup()
+
+
+def video_ratios_kb(current: str, i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for r in ["16:9", "9:16", "1:1"]:
+        mark = "✅ " if r == current else ""
+        kb.button(text=f"{mark}{r}", callback_data=f"setval:video_aspect_ratio:{r}")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:video_menu")
+    kb.adjust(3, 1)
+    return kb.as_markup()
+
+
+def video_durations_kb(current: int, i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for d in [3, 5, 8, 10]:
+        mark = "✅ " if d == current else ""
+        kb.button(text=f"{mark}{d}s", callback_data=f"setval:video_duration:{d}")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:video_menu")
+    kb.adjust(2, 2, 1)
+    return kb.as_markup()
+
+
+def audio_voices_kb(current: str, i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for v in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]:
+        mark = "✅ " if v == current else ""
+        kb.button(text=f"{mark}{v}", callback_data=f"setval:audio_voice:{v}")
+    kb.button(text=t(i18n, "buttons.back"), callback_data="set:audio_menu")
+    kb.adjust(3, 3, 1)
     return kb.as_markup()

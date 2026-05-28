@@ -27,7 +27,13 @@ CREATE TABLE IF NOT EXISTS users (
     tier TEXT DEFAULT 'free',
     quota_used INTEGER DEFAULT 0,
     quota_reset_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    video_model TEXT DEFAULT 'ltx-2',
+    video_aspect_ratio TEXT DEFAULT '16:9',
+    video_duration INTEGER DEFAULT 5,
+    audio_model TEXT DEFAULT 'openai-audio',
+    audio_voice TEXT DEFAULT 'nova',
+    text_model TEXT DEFAULT 'openai'
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_tg ON users(telegram_id);
@@ -73,6 +79,12 @@ class User:
     aspect_ratio: str
     style: str | None
     tier: str
+    video_model: str = 'ltx-2'
+    video_aspect_ratio: str = '16:9'
+    video_duration: int = 5
+    audio_model: str = 'openai-audio'
+    audio_voice: str = 'nova'
+    text_model: str = 'openai'
 
 
 @dataclass
@@ -91,8 +103,14 @@ class Generation:
 
 
 def _row_to_user(row: aiosqlite.Row) -> User:
-    # edit_model may be missing if a row predates the column migration.
-    edit_model = row["edit_model"] if "edit_model" in row.keys() else DEFAULT_EDIT_MODEL
+    keys = row.keys()
+    edit_model = row["edit_model"] if "edit_model" in keys else DEFAULT_EDIT_MODEL
+    video_model = row["video_model"] if "video_model" in keys else "ltx-2"
+    video_aspect_ratio = row["video_aspect_ratio"] if "video_aspect_ratio" in keys else "16:9"
+    video_duration = row["video_duration"] if "video_duration" in keys else 5
+    audio_model = row["audio_model"] if "audio_model" in keys else "openai-audio"
+    audio_voice = row["audio_voice"] if "audio_voice" in keys else "nova"
+    text_model = row["text_model"] if "text_model" in keys else "openai"
     return User(
         id=row["id"],
         telegram_id=row["telegram_id"],
@@ -103,6 +121,12 @@ def _row_to_user(row: aiosqlite.Row) -> User:
         aspect_ratio=row["aspect_ratio"],
         style=row["style"],
         tier=row["tier"],
+        video_model=video_model,
+        video_aspect_ratio=video_aspect_ratio,
+        video_duration=video_duration,
+        audio_model=audio_model,
+        audio_voice=audio_voice,
+        text_model=text_model,
     )
 
 
@@ -151,6 +175,24 @@ async def init_db() -> None:
                 (DEFAULT_EDIT_MODEL,),
             )
             logger.info("Added edit_model column (default {})", DEFAULT_EDIT_MODEL)
+
+        # Migration for video, audio, text settings columns
+        new_columns = {
+            "video_model": "TEXT DEFAULT 'ltx-2'",
+            "video_aspect_ratio": "TEXT DEFAULT '16:9'",
+            "video_duration": "INTEGER DEFAULT 5",
+            "audio_model": "TEXT DEFAULT 'openai-audio'",
+            "audio_voice": "TEXT DEFAULT 'nova'",
+            "text_model": "TEXT DEFAULT 'openai'"
+        }
+        for col_name, col_def in new_columns.items():
+            if col_name not in existing_cols:
+                await db.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+                default_val = col_def.split("DEFAULT ")[1].strip("'")
+                if "INTEGER" in col_def:
+                    default_val = int(default_val)
+                await db.execute(f"UPDATE users SET {col_name} = ? WHERE {col_name} IS NULL", (default_val,))
+                logger.info("Added users.{} column (default {})", col_name, default_val)
 
         cur = await db.execute("PRAGMA table_info(generations)")
         gen_cols = {row[1] for row in await cur.fetchall()}
@@ -222,7 +264,12 @@ async def get_user_lang(telegram_id: int) -> str | None:
 
 
 async def update_user_setting(telegram_id: int, field: str, value: Any) -> None:
-    if field not in {"model", "edit_model", "aspect_ratio", "style", "language"}:
+    allowed_fields = {
+        "model", "edit_model", "aspect_ratio", "style", "language",
+        "video_model", "video_aspect_ratio", "video_duration",
+        "audio_model", "audio_voice", "text_model"
+    }
+    if field not in allowed_fields:
         raise ValueError(f"unsupported field: {field}")
     async with _connect() as db:
         await db.execute(

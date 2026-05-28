@@ -25,7 +25,7 @@ from services.pollinations import (
 from states.generation import GenStates
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
-from utils.menu import CREATE_LABELS
+from utils.menu import CREATE_IMAGE_LABELS
 from utils.styles import apply_style
 
 router = Router(name=__name__)
@@ -33,7 +33,7 @@ router = Router(name=__name__)
 MAX_PROMPT_LEN = 500
 
 
-@router.message(F.text.in_(CREATE_LABELS))
+@router.message(F.text.in_(CREATE_IMAGE_LABELS))
 async def ask_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     await state.set_state(GenStates.waiting_for_prompt)
     await message.answer(t(i18n, "generation.ask_prompt"))
@@ -143,6 +143,38 @@ async def cb_regenerate(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     gen = await get_generation(gen_id)
     if gen is None:
         await cb.bot.send_message(cb.message.chat.id, t(i18n, "errors.generic"))
+        return
+
+    # Route based on generation kind
+    if gen.kind == "video":
+        from handlers.video import _do_video_generation
+        await _do_video_generation(
+            bot=cb.bot,
+            chat_id=cb.message.chat.id,
+            user_telegram_id=cb.from_user.id,
+            prompt=gen.prompt,
+            i18n=i18n,
+        )
+        return
+    elif gen.kind == "audio":
+        from handlers.audio import _do_audio_generation
+        await _do_audio_generation(
+            bot=cb.bot,
+            chat_id=cb.message.chat.id,
+            user_telegram_id=cb.from_user.id,
+            prompt=gen.prompt,
+            i18n=i18n,
+        )
+        return
+    elif gen.kind == "text":
+        from handlers.chat import _do_chat_generation
+        await _do_chat_generation(
+            bot=cb.bot,
+            chat_id=cb.message.chat.id,
+            user_telegram_id=cb.from_user.id,
+            prompt=gen.prompt,
+            i18n=i18n,
+        )
         return
 
     # If the original was an edit, redo it as an edit (same source photos +
