@@ -1,6 +1,6 @@
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import BufferedInputFile, Message
 from loguru import logger
 
 from keyboards.generation import post_media_kb
@@ -23,7 +23,7 @@ from utils.menu import ALL_MENU_LABELS, CHAT_LABELS
 
 router = Router(name=__name__)
 
-MAX_CHAT_LEN = 2000
+MAX_CHAT_LEN = 4000
 
 
 @router.message(F.text.in_(CHAT_LABELS))
@@ -107,11 +107,22 @@ async def _do_chat_generation(
     )
 
     # Offer basic regeneration/favorite options
-    await bot.send_message(
-        chat_id=chat_id,
-        text=response_text,
-        reply_markup=post_media_kb(gen_id, is_fav=False, i18n=i18n, kind="text"),
-    )
+    if len(response_text) > 4000:
+        md_file = BufferedInputFile(response_text.encode("utf-8"), filename="response.md")
+        sent = await bot.send_document(
+            chat_id=chat_id,
+            document=md_file,
+            caption=t(i18n, "chat.response_too_long_caption"),
+            reply_markup=post_media_kb(gen_id, is_fav=False, i18n=i18n, kind="text"),
+        )
+        if sent.document:
+            await update_generation_file_id(gen_id, sent.document.file_id)
+    else:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=response_text,
+            reply_markup=post_media_kb(gen_id, is_fav=False, i18n=i18n, kind="text"),
+        )
 
     try:
         await progress_msg.delete()

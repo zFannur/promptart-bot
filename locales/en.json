@@ -32,6 +32,7 @@
   "chat.ask_prompt": "💬 <b>Chat Mode</b>\n\nSend me any questions or messages to chat with the AI. Type /cancel or another menu command to exit.",
   "chat.in_progress": "💬 Thinking…",
   "chat.error": "😢 Text generation failed. Try again.",
+  "chat.response_too_long_caption": "📄 The response was too long, so it has been attached as a Markdown file.",
   "buttons.again": "🔄 Again",
   "buttons.enhance": "✨ Enhance",
   "buttons.edit_this": "✏️ Edit",
