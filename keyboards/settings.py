@@ -35,8 +35,9 @@ def models_kb(
     kb = InlineKeyboardBuilder()
     for m in models:
         mark = "✅ " if m.name == current else ""
+        paid_tag = " [paid]" if getattr(m, "paid_only", False) else ""
         kb.button(
-            text=f"{mark}{m.name} · {format_price(m.price_pollen)}",
+            text=f"{mark}{m.name}{paid_tag} · {format_price(m.price_pollen)}",
             callback_data=f"setval:{field}:{m.name}",
         )
     kb.button(text=t(i18n, "buttons.back"), callback_data="set:back")

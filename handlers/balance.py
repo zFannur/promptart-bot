@@ -2,7 +2,7 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from services.pollinations import BalanceUnavailable, pollinations
+from services.pollinations import BalanceInfo, BalanceUnavailable, pollinations
 from utils.i18n import t
 from utils.menu import BALANCE_LABELS
 from utils.models import format_price
@@ -26,7 +26,18 @@ async def cmd_balance(message: Message, i18n: dict[str, str]) -> None:
 
     usage_count = await pollinations.get_usage_count_24h()
 
-    lines = [t(i18n, "balance.current", balance=format_price(bal))]
+    lines = []
+    if isinstance(bal, BalanceInfo) and bal.tier_balance is not None and bal.paid_balance is not None:
+        lines.append(t(
+            i18n,
+            "balance.current_detailed",
+            balance=format_price(bal),
+            tier=format_price(bal.tier_balance),
+            paid=format_price(bal.paid_balance),
+        ))
+    else:
+        lines.append(t(i18n, "balance.current", balance=format_price(bal)))
+
     if usage_count is not None:
         lines.append(t(i18n, "balance.usage_24h", count=usage_count))
     await message.answer("\n".join(lines), disable_web_page_preview=True)

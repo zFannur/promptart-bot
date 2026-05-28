@@ -5,7 +5,7 @@ from loguru import logger
 
 from keyboards.settings import models_kb, ratios_kb, settings_menu, styles_kb
 from services.database import get_user, update_user_setting
-from services.pollinations import BalanceUnavailable, ModelInfo, pollinations
+from services.pollinations import BalanceInfo, BalanceUnavailable, ModelInfo, pollinations
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
 from utils.menu import SETTINGS_LABELS
@@ -48,6 +48,14 @@ async def _balance_line(i18n: dict[str, str]) -> str:
         if bal.reason == "missing_permission":
             return t(i18n, "balance.unavailable_permission")
         return t(i18n, "balance.unavailable_generic")
+    if isinstance(bal, BalanceInfo) and bal.tier_balance is not None and bal.paid_balance is not None:
+        return t(
+            i18n,
+            "balance.line_detailed",
+            balance=format_price(bal),
+            tier=format_price(bal.tier_balance),
+            paid=format_price(bal.paid_balance),
+        )
     return t(i18n, "balance.line", balance=format_price(bal))
 
 

@@ -17,6 +17,7 @@ TEXT_URL = f"{BASE_URL}/v1/chat/completions"
 MODELS_URL = f"{BASE_URL}/models"
 BALANCE_URL = f"{BASE_URL}/account/balance"
 USAGE_URL = f"{BASE_URL}/account/usage"
+PROFILE_URL = f"{BASE_URL}/account/profile"
 
 MODELS_CACHE_TTL_SEC = 600  # 10 min
 
@@ -28,6 +29,15 @@ class ModelInfo:
     price_pollen: float  # per single image, derived from completionImageTokens
     supports_image_input: bool  # True = supports img2img / edits
     aliases: tuple[str, ...] = ()
+    paid_only: bool = False
+
+
+class BalanceInfo(float):
+    def __new__(cls, value: float, tier_balance: float | None = None, paid_balance: float | None = None):
+        obj = super().__new__(cls, value)
+        obj.tier_balance = tier_balance
+        obj.paid_balance = paid_balance
+        return obj
 
 
 @dataclass(frozen=True)
@@ -132,6 +142,7 @@ class PollinationsClient:
                         price_pollen=price,
                         supports_image_input="image" in entry.get("input_modalities", []),
                         aliases=tuple(entry.get("aliases") or ()),
+                        paid_only=bool(entry.get("paid_only")),
                     )
                 )
 
@@ -173,7 +184,7 @@ class PollinationsClient:
                 count += 1
         return count
 
-    async def get_balance(self) -> float | BalanceUnavailable:
+    async def get_balance(self) -> BalanceInfo | BalanceUnavailable:
         """Returns current pollen balance, or BalanceUnavailable if the key
         lacks the 'profile usage' permission (403) or the call fails."""
         try:
@@ -184,9 +195,59 @@ class PollinationsClient:
         if resp.status_code == 200:
             try:
                 data = resp.json()
-                return float(data.get("balance", 0))
+                bal = float(data.get("balance", 0))
             except Exception as e:
                 return BalanceUnavailable(f"parse: {e}")
+
+            # Try to get detailed balance breakdown (tier and paid)
+            try:
+                prof_resp = await self._client.get(PROFILE_URL, headers=self._headers)
+                if prof_resp.status_code == 200:
+                    prof_data = prof_resp.json()
+                    tier = prof_data.get("tier", "").lower()
+                    next_reset_str = prof_data.get("nextResetAt")
+
+                    tier_caps = {
+                        "spore": 0.01,
+                        "seed": 0.15,
+                        "flower": 0.40,
+                        "nectar": 0.80,
+                        "router": 1.60,
+                    }
+
+                    if tier in tier_caps and next_reset_str:
+                        tier_cap = tier_caps[tier]
+                        clean_str = next_reset_str.replace("Z", "+00:00")
+                        dt_next = datetime.fromisoformat(clean_str)
+                        dt_last_reset = dt_next - timedelta(hours=1)
+
+                        usage_resp = await self._client.get(USAGE_URL, headers=self._headers)
+                        if usage_resp.status_code == 200:
+                            usage_records = usage_resp.json().get("usage") or []
+                            spent_tier = 0.0
+                            for r in usage_records:
+                                ts = r.get("timestamp")
+                                if not ts:
+                                    continue
+                                try:
+                                    dt_record = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+                                except (ValueError, TypeError):
+                                    continue
+
+                                if dt_last_reset <= dt_record < dt_next:
+                                    meter = r.get("meter_source", "tier")
+                                    if meter not in ("paid", "pack"):
+                                        spent_tier += float(r.get("pollen_spent", 0.0))
+
+                            spent_tier = min(spent_tier, tier_cap)
+                            remaining_tier = max(0.0, tier_cap - spent_tier)
+                            tier_balance = min(remaining_tier, bal)
+                            paid_balance = bal - tier_balance
+                            return BalanceInfo(bal, tier_balance, paid_balance)
+            except Exception as e:
+                logger.warning("Failed to calculate detailed balance breakdown: {}", e)
+
+            return BalanceInfo(bal)
 
         if resp.status_code == 403:
             return BalanceUnavailable("missing_permission")
