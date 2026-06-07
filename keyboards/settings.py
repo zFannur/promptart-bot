@@ -76,8 +76,7 @@ def models_kb(
     kb = InlineKeyboardBuilder()
     for m in models:
         mark = "✅ " if m.name == current else ""
-        paid_tag = " [paid]" if getattr(m, "paid_only", False) else ""
-        
+
         # Format the price based on modality / unit
         if "video" in field:
             price_str = f"{format_price(m.price_pollen)}/s"
@@ -89,7 +88,7 @@ def models_kb(
             price_str = format_price(m.price_pollen)
             
         kb.button(
-            text=f"{mark}{m.name}{paid_tag} · {price_str}",
+            text=f"{mark}{m.name} · {price_str}",
             callback_data=f"setval:{field}:{m.name}",
         )
     kb.button(text=t(i18n, "buttons.back"), callback_data=back_route)
