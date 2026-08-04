@@ -11,7 +11,9 @@ router = Router(name=__name__)
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, i18n: dict[str, str]) -> None:
+async def cmd_start(
+    message: Message, i18n: dict[str, str], pollinations_token: str | None = None
+) -> None:
     if message.from_user is None:
         return
     lang = detect_lang(message.from_user.language_code)
@@ -24,6 +26,8 @@ async def cmd_start(message: Message, i18n: dict[str, str]) -> None:
         t(i18n, "start.welcome", name=message.from_user.first_name or "👋"),
         reply_markup=main_menu(i18n),
     )
+    if pollinations_token is None:
+        await message.answer(t(i18n, "token.required"), disable_web_page_preview=True)
 
 
 @router.message(Command("help"))

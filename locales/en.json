@@ -150,5 +150,11 @@
   "settings.choose_image_quality": "{balance}\n\nChoose <b>image quality</b> level (GPTImage only):",
   "settings.choose_image_transparent": "{balance}\n\nToggle <b>transparent background</b> (GPTImage only):",
   "settings.transparency_on": "Enabled (PNG)",
-  "settings.transparency_off": "Disabled (JPEG)"
+  "settings.transparency_off": "Disabled (JPEG)",
+  "token.required": "🔑 Your own Pollinations key is required.\n\nThis bot runs on your account — never on someone else's balance.\n\n1. Get a key: https://auth.pollinations.ai\n2. Send it here: <code>/token YOUR_KEY</code>\n\nThe message with the key is deleted immediately. Remove it later with <code>/token delete</code>.",
+  "token.status_none": "🔑 No Pollinations key set.\n\nGet one at https://auth.pollinations.ai and send <code>/token YOUR_KEY</code>",
+  "token.status_set": "🔑 Key set: <code>{masked}</code>\n\nReplace with <code>/token NEW_KEY</code>, remove with <code>/token delete</code>",
+  "token.saved": "✅ Key saved: <code>{masked}</code>\nGenerations now bill your own Pollinations balance.",
+  "token.invalid": "❌ Pollinations rejected this key (401).\nCheck it at https://auth.pollinations.ai and send it again.",
+  "token.deleted": "🗑 Key removed. Generation stays off until you send a new one."
 }

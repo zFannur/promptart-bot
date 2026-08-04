@@ -150,5 +150,11 @@
   "settings.choose_image_quality": "{balance}\n\nВыберите уровень <b>качества изображения</b> (только для GPTImage):",
   "settings.choose_image_transparent": "{balance}\n\nПереключите <b>прозрачный фон</b> (только для GPTImage):",
   "settings.transparency_on": "Включена (PNG)",
-  "settings.transparency_off": "Выключена (JPEG)"
+  "settings.transparency_off": "Выключена (JPEG)",
+  "token.required": "🔑 Нужен ваш ключ Pollinations.\n\nБот работает на вашем аккаунте — не на чужом балансе.\n\n1. Получите ключ: https://auth.pollinations.ai\n2. Отправьте сюда: <code>/token ВАШ_КЛЮЧ</code>\n\nСообщение с ключом удалится сразу. Убрать ключ — <code>/token delete</code>.",
+  "token.status_none": "🔑 Ключ Pollinations не задан.\n\nПолучите его на https://auth.pollinations.ai и отправьте <code>/token ВАШ_КЛЮЧ</code>",
+  "token.status_set": "🔑 Ключ задан: <code>{masked}</code>\n\nЗаменить — <code>/token НОВЫЙ_КЛЮЧ</code>, убрать — <code>/token delete</code>",
+  "token.saved": "✅ Ключ сохранён: <code>{masked}</code>\nГенерации идут с вашего баланса Pollinations.",
+  "token.invalid": "❌ Pollinations отклонил этот ключ (401).\nПроверьте его на https://auth.pollinations.ai и пришлите снова.",
+  "token.deleted": "🗑 Ключ удалён. Генерации отключены, пока не пришлёте новый."
 }

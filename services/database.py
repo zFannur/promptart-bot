@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
     audio_voice TEXT DEFAULT 'nova',
     text_model TEXT DEFAULT 'openai',
     image_quality TEXT DEFAULT 'medium',
-    image_transparent INTEGER DEFAULT 0
+    image_transparent INTEGER DEFAULT 0,
+    pollinations_token TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_tg ON users(telegram_id);
@@ -218,6 +219,10 @@ async def init_db() -> None:
                 await db.execute(f"UPDATE users SET {col_name} = ? WHERE {col_name} IS NULL", (default_val,))
                 logger.info("Added users.{} column (default {})", col_name, default_val)
 
+        if "pollinations_token" not in existing_cols:
+            await db.execute("ALTER TABLE users ADD COLUMN pollinations_token TEXT")
+            logger.info("Added users.pollinations_token column")
+
         cur = await db.execute("PRAGMA table_info(generations)")
         gen_cols = {row[1] for row in await cur.fetchall()}
         if "kind" not in gen_cols:
@@ -285,6 +290,30 @@ async def get_user_lang(telegram_id: int) -> str | None:
         )
         row = await cur.fetchone()
         return row["language"] if row else None
+
+
+async def get_user_token(telegram_id: int) -> str | None:
+    async with _connect() as db:
+        cur = await db.execute(
+            "SELECT pollinations_token FROM users WHERE telegram_id = ?",
+            (telegram_id,),
+        )
+        row = await cur.fetchone()
+        return row["pollinations_token"] if row else None
+
+
+async def set_user_token(telegram_id: int, token: str | None) -> None:
+    """Store (or clear, with None) the user's own Pollinations API key.
+
+    ponytail: plaintext in SQLite — same trust level as the bot token sitting
+    in .env next to it. Encrypt only if the DB ever leaves this host.
+    """
+    async with _connect() as db:
+        await db.execute(
+            "UPDATE users SET pollinations_token = ? WHERE telegram_id = ?",
+            (token, telegram_id),
+        )
+        await db.commit()
 
 
 async def update_user_setting(telegram_id: int, field: str, value: Any) -> None:

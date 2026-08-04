@@ -10,8 +10,12 @@ class Settings(BaseSettings):
     )
 
     bot_token: str = Field(..., min_length=20)
-    pollinations_api_key: str = Field(..., min_length=10)
     admin_id: int
+
+    # ponytail: no owner-wide Pollinations key. Every user pays with their own
+    # token (/token), stored per-user in the DB. Setting this makes the bot fall
+    # back to YOUR balance for everyone — leave it empty.
+    pollinations_api_key: str = ""
 
     db_path: str = "data/bot.db"
     log_level: str = "INFO"

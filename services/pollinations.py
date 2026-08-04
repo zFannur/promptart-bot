@@ -3,6 +3,7 @@ import base64
 import random
 import time
 import urllib.parse
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -22,6 +23,10 @@ PROFILE_URL = f"{BASE_URL}/account/profile"
 VIDEO_URL = f"{BASE_URL}/v1/videos/generations"
 
 MODELS_CACHE_TTL_SEC = 600  # 10 min
+
+# ponytail: one contextvar instead of threading `token` through ~10 call sites.
+# TokenMiddleware sets it per update; every request reads it via _headers.
+current_token: ContextVar[str | None] = ContextVar("pollinations_token", default=None)
 
 
 @dataclass(frozen=True)
@@ -72,13 +77,16 @@ class PremiumRequired(PollinationsError):
     """The chosen model requires more pollen than the account has."""
 
 
+class TokenRequired(PollinationsError):
+    """No Pollinations token for the current user — they must send /token."""
+
+
 class PollinationsClient:
     def __init__(self) -> None:
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(90.0, connect=10.0),
             follow_redirects=True,
         )
-        self._headers = {"Authorization": f"Bearer {settings.pollinations_api_key}"}
         self._models_cache: dict[str, tuple[float, list[ModelInfo]]] = {}
         self._models_locks = {
             "image": asyncio.Lock(),
@@ -86,6 +94,13 @@ class PollinationsClient:
             "audio": asyncio.Lock(),
             "text": asyncio.Lock(),
         }
+
+    @property
+    def _headers(self) -> dict[str, str]:
+        token = current_token.get() or settings.pollinations_api_key
+        if not token:
+            raise TokenRequired("no Pollinations token for this user")
+        return {"Authorization": f"Bearer {token}"}
 
     async def close(self) -> None:
         await self._client.aclose()

@@ -10,9 +10,10 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
 
 from config import settings
-from handlers import balance, edit, errors, generation, history, settings as settings_h, start, video, audio, chat, prompts
+from handlers import balance, edit, errors, generation, history, settings as settings_h, start, token, video, audio, chat, prompts
 from middlewares.i18n import I18nMiddleware
 from middlewares.ratelimit import RateLimitMiddleware
+from middlewares.token import TokenMiddleware
 from services.database import init_db
 from services.pollinations import pollinations
 
@@ -70,12 +71,16 @@ async def main() -> None:
     i18n_mw = I18nMiddleware()
     dp.message.middleware(i18n_mw)
     dp.callback_query.middleware(i18n_mw)
+    token_mw = TokenMiddleware()  # after i18n: needs the user row to exist
+    dp.message.middleware(token_mw)
+    dp.callback_query.middleware(token_mw)
     dp.message.middleware(RateLimitMiddleware(
         limit=settings.rate_limit_per_minute,
         window=60,
     ))
 
     dp.include_router(start.router)
+    dp.include_router(token.router)
     dp.include_router(settings_h.router)
     dp.include_router(history.router)
     dp.include_router(balance.router)
