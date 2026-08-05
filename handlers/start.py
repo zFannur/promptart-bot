@@ -2,7 +2,7 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
-from keyboards.main import main_menu
+from keyboards.main import get_key_button, main_menu
 from services.database import upsert_user
 from utils.i18n import detect_lang, t
 from utils.menu import HELP_LABELS
@@ -22,12 +22,24 @@ async def cmd_start(
         username=message.from_user.username,
         language=lang,
     )
+    name = message.from_user.first_name or "👋"
+    if pollinations_token is None:
+        # Without a key nothing can be generated, so say that up front instead
+        # of inviting the user to press "Create" and hit an error. The old flow
+        # led with the welcome and buried the key requirement in a second
+        # message, which read as optional.
+        await message.answer(
+            t(i18n, "start.welcome_no_key", name=name),
+            reply_markup=get_key_button(i18n),
+            disable_web_page_preview=True,
+        )
+        await message.answer(t(i18n, "start.menu_hint"), reply_markup=main_menu(i18n))
+        return
+
     await message.answer(
-        t(i18n, "start.welcome", name=message.from_user.first_name or "👋"),
+        t(i18n, "start.welcome", name=name),
         reply_markup=main_menu(i18n),
     )
-    if pollinations_token is None:
-        await message.answer(t(i18n, "token.required"), disable_web_page_preview=True)
 
 
 @router.message(Command("help"))

@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 from loguru import logger
 
 from config import settings
@@ -57,6 +58,44 @@ def warn_if_db_ephemeral() -> None:
         logger.warning("=" * 60)
 
 
+# Telegram's blue "Menu" button and the "/" autocomplete are the first place a
+# user looks for what a bot can do. Without this the list is empty, so /token
+# was effectively invisible and nobody knew a key was needed. /token is second
+# on purpose: right under /start, where a lost user will see it.
+COMMANDS: dict[str, list[tuple[str, str]]] = {
+    "en": [
+        ("start", "Main menu"),
+        ("token", "Your Pollinations key (required to generate)"),
+        ("balance", "Pollen balance and prices"),
+        ("edit", "Combine / edit your photos"),
+        ("prompts", "Prompt builder and templates"),
+        ("settings", "Model and style settings"),
+        ("history", "Recent generations"),
+        ("favorites", "Saved favorites"),
+        ("help", "Help"),
+    ],
+    "ru": [
+        ("start", "Главное меню"),
+        ("token", "Ваш ключ Pollinations (нужен для генерации)"),
+        ("balance", "Баланс пыльцы и цены"),
+        ("edit", "Объединить / редактировать фото"),
+        ("prompts", "Конструктор и шаблоны промтов"),
+        ("settings", "Настройки модели и стиля"),
+        ("history", "История генераций"),
+        ("favorites", "Избранное"),
+        ("help", "Справка"),
+    ],
+}
+
+
+async def setup_commands(bot: Bot) -> None:
+    for lang, commands in COMMANDS.items():
+        payload = [BotCommand(command=c, description=d) for c, d in commands]
+        # "en" doubles as the default list for every other locale.
+        await bot.set_my_commands(payload, language_code=None if lang == "en" else lang)
+    logger.info("Bot commands published ({})", ", ".join(COMMANDS))
+
+
 async def main() -> None:
     setup_logging()
     warn_if_db_ephemeral()
@@ -95,6 +134,10 @@ async def main() -> None:
     dp.include_router(errors.router)
 
     me = await bot.get_me()
+    try:
+        await setup_commands(bot)
+    except Exception as exc:  # noqa: BLE001 - a menu failure must not stop the bot
+        logger.warning("Could not publish bot commands: {}", exc)
     logger.info("Bot @{} started", me.username)
 
     try:

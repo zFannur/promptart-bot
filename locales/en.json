@@ -1,6 +1,6 @@
 {
   "start.welcome": "👋 Hi, {name}!\n\nI'll create images for you from text descriptions using AI. Just describe what to draw.\n\n🎨 Tap «Create» to start.",
-  "start.help": "<b>PromptArt</b> — AI media generator & editor\n\n<b>Commands:</b>\n/start — main menu\n/edit — combine / edit your photos\n/prompts — prompts builder, templates, and library\n/settings — model and style settings\n/history — recent generations\n/favorites — saved favorites\n/balance — pollen balance and prices\n/help — this help\n\n<b>Create from scratch:</b>\n1. Use reply buttons or send text to generate images, videos, audio (TTS), or chat with AI.\n2. Configure specific settings for each modality in settings.\n\nPowered by Pollinations.ai",
+  "start.help": "<b>PromptArt</b> — AI media generator &amp; editor\n\n<b>Commands:</b>\n/start — main menu\n/token — your Pollinations key (generation needs it)\n/edit — combine / edit your photos\n/prompts — prompts builder, templates, and library\n/settings — model and style settings\n/history — recent generations\n/favorites — saved favorites\n/balance — pollen balance and prices\n/help — this help\n\n<b>Getting started:</b>\n1. Send your Pollinations key: <code>/token YOUR_KEY</code> (create one at https://enter.pollinations.ai). Generations bill your own balance.\n2. Use reply buttons or send text to generate images, videos, audio (TTS), or chat with AI.\n3. Configure specific settings for each modality in settings.\n\nPowered by Pollinations.ai",
   "menu.create_image": "🎨 Create Image",
   "menu.create_video": "🎥 Create Video",
   "menu.create_audio": "🔊 Create Audio",
@@ -72,7 +72,7 @@
   "balance.usage_24h": "📊 <b>Used last 24h:</b> {count} generations",
   "balance.unavailable_permission": "💰 <b>Balance:</b> hidden — your API key lacks the <code>profile usage</code> permission. Generate a new key at <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a> with that scope to see balance here.",
   "balance.unavailable_generic": "💰 <b>Balance:</b> temporarily unavailable. Check <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
-  "balance.help_permission": "💰 To show your pollen balance here, your API key needs the <b>profile usage</b> permission.\n\n<b>How to get one:</b>\n1. Go to <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>\n2. Open the Keys page\n3. Create a new key with permissions <code>profile</code> + <code>usage</code>\n4. Give it to the bot admin to put in the env\n\nUntil then, check your balance at <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
+  "balance.help_permission": "💰 To show your pollen balance here, your key needs the <b>profile usage</b> permission.\n\n<b>How to get one:</b>\n1. Go to <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>\n2. Open the Keys page\n3. Create a key with permissions <code>profile</code> + <code>usage</code>\n4. Send it to the bot: <code>/token YOUR_KEY</code>\n\nUntil then, check your balance at <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
   "model.flux": "Universal (recommended)",
   "model.zimage": "Turbo — fast (2–4 sec)",
   "model.seedream": "Stylized · premium",
@@ -151,10 +151,14 @@
   "settings.choose_image_transparent": "{balance}\n\nToggle <b>transparent background</b> (GPTImage only):",
   "settings.transparency_on": "Enabled (PNG)",
   "settings.transparency_off": "Disabled (JPEG)",
-  "token.required": "🔑 Your own Pollinations key is required.\n\nThis bot runs on your account — never on someone else's balance.\n\n1. Get a key: https://auth.pollinations.ai\n2. Send it here: <code>/token YOUR_KEY</code>\n\nThe message with the key is deleted immediately. Remove it later with <code>/token delete</code>.",
-  "token.status_none": "🔑 No Pollinations key set.\n\nGet one at https://auth.pollinations.ai and send <code>/token YOUR_KEY</code>",
+  "token.required": "🔑 <b>Your own Pollinations key is required</b>\n\nThe bot generates on your account, never on someone else's balance — so nothing runs without a key.\n\n1️⃣ Tap the button below and create a key\n2️⃣ Send it here: <code>/token YOUR_KEY</code>\n\nThe message with the key is deleted immediately. Remove the key later with <code>/token delete</code>.",
+  "token.status_none": "🔑 No Pollinations key set — generation is unavailable.\n\nCreate a key with the button below and send: <code>/token YOUR_KEY</code>",
   "token.status_set": "🔑 Key set: <code>{masked}</code>\n\nReplace with <code>/token NEW_KEY</code>, remove with <code>/token delete</code>",
   "token.saved": "✅ Key saved: <code>{masked}</code>\nGenerations now bill your own Pollinations balance.",
-  "token.invalid": "❌ Pollinations rejected this key (401).\nCheck it at https://auth.pollinations.ai and send it again.",
-  "token.deleted": "🗑 Key removed. Generation stays off until you send a new one."
+  "token.invalid": "❌ Pollinations rejected this key (401).\n\nCheck that you copied it in full and that it is not revoked, then send it again: <code>/token YOUR_KEY</code>",
+  "token.deleted": "🗑 Key removed. Generation stays off until you send a new one.",
+  "start.welcome_no_key": "👋 Hi, {name}!\n\nI generate images, video and speech from a description, edit photos and can chat — all with AI.\n\n<b>⚠️ First you need your own Pollinations key.</b>\nThis bot runs on your account, never on someone else's balance, so nothing generates without it.\n\n<b>Two steps:</b>\n1️⃣ Tap the button below and create a key\n2️⃣ Send it here in one message:\n<code>/token YOUR_KEY</code>\n\nI delete the message with the key right away so it does not stay in the chat.",
+  "start.menu_hint": "👇 The menu is below the input field. Buttons start working once you send a key.",
+  "token.get_key_button": "🔑 Get a Pollinations key",
+  "token.malformed": "❌ That does not look like a key.\n\nA Pollinations key is a string of latin letters and digits with no spaces.\n\nCopy the whole key from the Pollinations page and send:\n<code>/token YOUR_KEY</code>"
 }

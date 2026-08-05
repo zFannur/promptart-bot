@@ -1,6 +1,6 @@
 {
   "start.welcome": "👋 Привет, {name}!\n\nЯ буду создавать для вас изображения по текстовым описаниям с помощью ИИ. Просто опишите, что нужно нарисовать.\n\n🎨 Нажмите «Создать», чтобы начать.",
-  "start.help": "<b>PromptArt</b> — ИИ генератор и редактор медиа\n\n<b>Команды:</b>\n/start — главное меню\n/edit — объединить / редактировать ваши фото\n/prompts — конструктор, шаблоны и библиотека промтов\n/settings — настройки модели и стиля\n/history — история генераций\n/favorites — сохраненные избранные\n/balance — баланс пыльцы (pollen) и цены\n/help — эта справка\n\n<b>Создание с нуля:</b>\n1. Используйте кнопки меню или отправляйте текст, чтобы генерировать изображения, видео, аудио (TTS) или общаться с ИИ.\n2. Настройте параметры для каждой функции в меню настроек.\n\nРаботает на базе Pollinations.ai",
+  "start.help": "<b>PromptArt</b> — ИИ генератор и редактор медиа\n\n<b>Команды:</b>\n/start — главное меню\n/token — ваш ключ Pollinations (без него генерация не работает)\n/edit — объединить / редактировать ваши фото\n/prompts — конструктор, шаблоны и библиотека промтов\n/settings — настройки модели и стиля\n/history — история генераций\n/favorites — сохраненные избранные\n/balance — баланс пыльцы (pollen) и цены\n/help — эта справка\n\n<b>С чего начать:</b>\n1. Пришлите свой ключ Pollinations: <code>/token ВАШ_КЛЮЧ</code> (создать — на https://enter.pollinations.ai). Генерации идут с вашего баланса.\n2. Используйте кнопки меню или отправляйте текст, чтобы генерировать изображения, видео, аудио (TTS) или общаться с ИИ.\n3. Настройте параметры для каждой функции в меню настроек.\n\nРаботает на базе Pollinations.ai",
   "menu.create_image": "🎨 Создать изображение",
   "menu.create_video": "🎥 Создать видео",
   "menu.create_audio": "🔊 Создать аудио",
@@ -72,7 +72,7 @@
   "balance.usage_24h": "📊 <b>Использовано за 24ч:</b> {count} генераций",
   "balance.unavailable_permission": "💰 <b>Баланс:</b> скрыт — у вашего API ключа нет разрешения <code>profile usage</code>. Создайте новый ключ на <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a> с этой областью видимости, чтобы видеть баланс здесь.",
   "balance.unavailable_generic": "💰 <b>Баланс:</b> временно недоступен. Проверьте на <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
-  "balance.help_permission": "💰 Чтобы показывать ваш баланс пыльцы здесь, ваш API-ключ должен иметь разрешение <b>profile usage</b>.\n\n<b>Как его получить:</b>\n1. Перейдите на <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>\n2. Откройте страницу Keys\n3. Создайте новый ключ с правами <code>profile</code> + <code>usage</code>\n4. Передайте его администратору бота для установки в окружение\n\nДо тех пор вы можете проверять баланс на <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
+  "balance.help_permission": "💰 Чтобы показывать здесь ваш баланс пыльцы, у ключа должно быть разрешение <b>profile usage</b>.\n\n<b>Как получить такой ключ:</b>\n1. Откройте <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>\n2. Перейдите на страницу Keys\n3. Создайте ключ с правами <code>profile</code> + <code>usage</code>\n4. Пришлите его боту: <code>/token ВАШ_КЛЮЧ</code>\n\nДо тех пор баланс можно смотреть на <a href=\"https://enter.pollinations.ai\">enter.pollinations.ai</a>.",
   "model.flux": "Универсальная (рекомендуется)",
   "model.zimage": "Turbo — быстрая (2–4 сек)",
   "model.seedream": "Стилизованная · премиум",
@@ -151,10 +151,14 @@
   "settings.choose_image_transparent": "{balance}\n\nПереключите <b>прозрачный фон</b> (только для GPTImage):",
   "settings.transparency_on": "Включена (PNG)",
   "settings.transparency_off": "Выключена (JPEG)",
-  "token.required": "🔑 Нужен ваш ключ Pollinations.\n\nБот работает на вашем аккаунте — не на чужом балансе.\n\n1. Получите ключ: https://auth.pollinations.ai\n2. Отправьте сюда: <code>/token ВАШ_КЛЮЧ</code>\n\nСообщение с ключом удалится сразу. Убрать ключ — <code>/token delete</code>.",
-  "token.status_none": "🔑 Ключ Pollinations не задан.\n\nПолучите его на https://auth.pollinations.ai и отправьте <code>/token ВАШ_КЛЮЧ</code>",
+  "token.required": "🔑 <b>Нужен ваш ключ Pollinations</b>\n\nБот генерирует с вашего аккаунта, а не с чужого баланса — поэтому без ключа ничего не создаётся.\n\n1️⃣ Нажмите кнопку ниже и создайте ключ\n2️⃣ Пришлите его сюда: <code>/token ВАШ_КЛЮЧ</code>\n\nСообщение с ключом удалится сразу. Убрать ключ позже — <code>/token delete</code>.",
+  "token.status_none": "🔑 Ключ Pollinations не задан — генерация недоступна.\n\nСоздайте ключ по кнопке ниже и пришлите: <code>/token ВАШ_КЛЮЧ</code>",
   "token.status_set": "🔑 Ключ задан: <code>{masked}</code>\n\nЗаменить — <code>/token НОВЫЙ_КЛЮЧ</code>, убрать — <code>/token delete</code>",
   "token.saved": "✅ Ключ сохранён: <code>{masked}</code>\nГенерации идут с вашего баланса Pollinations.",
-  "token.invalid": "❌ Pollinations отклонил этот ключ (401).\nПроверьте его на https://auth.pollinations.ai и пришлите снова.",
-  "token.deleted": "🗑 Ключ удалён. Генерации отключены, пока не пришлёте новый."
+  "token.invalid": "❌ Pollinations отклонил этот ключ (401).\n\nПроверьте, что скопировали его целиком и он не отозван, затем пришлите снова: <code>/token ВАШ_КЛЮЧ</code>",
+  "token.deleted": "🗑 Ключ удалён. Генерации отключены, пока не пришлёте новый.",
+  "start.welcome_no_key": "👋 Привет, {name}!\n\nЯ генерирую изображения, видео и озвучку по описанию, редактирую фото и умею общаться — всё через ИИ.\n\n<b>⚠️ Сначала нужен ваш ключ Pollinations.</b>\nБот работает на вашем аккаунте, а не на чужом балансе, поэтому без ключа генерация не запустится.\n\n<b>Два шага:</b>\n1️⃣ Нажмите кнопку ниже и создайте ключ\n2️⃣ Пришлите его сюда одним сообщением:\n<code>/token ВАШ_КЛЮЧ</code>\n\nСообщение с ключом я удалю сразу, чтобы он не остался в переписке.",
+  "start.menu_hint": "👇 Меню — под полем ввода. Кнопки заработают, как только пришлёте ключ.",
+  "token.get_key_button": "🔑 Получить ключ Pollinations",
+  "token.malformed": "❌ Это не похоже на ключ.\n\nКлюч Pollinations — строка из латинских букв и цифр без пробелов. Кириллицы и пробелов в нём быть не может.\n\nСкопируйте ключ целиком со страницы Pollinations и пришлите:\n<code>/token ВАШ_КЛЮЧ</code>"
 }
