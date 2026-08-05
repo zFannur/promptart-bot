@@ -11,6 +11,11 @@
   <img src="assets/logo.png" alt="PromptArt logo" width="180" />
 </p>
 
+> **Every user brings their own Pollinations key.** The bot has no shared key: each
+> person sends `/token <key>` once, it is stored per user, and their generations bill
+> their own balance. Whoever runs the bot pays nothing for other people's images — see
+> [Pollinations keys](#pollinations-keys).
+
 ## Features
 
 ### Modalities
@@ -55,6 +60,10 @@
 - **/history** and **/favorites** preview media with regeneration/favorite inline options.
 - **/balance** shows total pollen balance + detailed breakdown (Tier remaining vs Paid credits).
 
+### Localization
+- English and Russian, picked automatically from the Telegram client language and stored per user.
+- The Telegram command menu is published in both languages on startup.
+
 ---
 
 ## Quick Start
@@ -69,11 +78,29 @@ pip install -r requirements.txt
 
 # 2. Configure
 cp .env.example .env
-# edit .env with your tokens (see "Getting tokens" below)
+# only BOT_TOKEN and ADMIN_ID are required; leave POLLINATIONS_API_KEY empty
+# (see "Getting tokens" below)
 
 # 3. Run
 python bot.py
 ```
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/start` | Main menu. Without a key, explains how to get one. |
+| `/token` | Show, set, or remove **your** Pollinations key. Required before anything generates. |
+| `/balance` | Pollen balance and prices. |
+| `/edit` | Combine / edit 1–4 of your photos. |
+| `/prompts` | Prompt builder, templates, and library. |
+| `/settings` | Model, aspect ratio, style, and voice pickers. |
+| `/history` | Recent generations. |
+| `/favorites` | Saved favorites. |
+| `/help` | Command reference. |
+
+The list is published to Telegram on startup (`setup_commands` in `bot.py`), so it also
+appears under the client's **Menu** button and in `/` autocomplete.
 
 ## Getting Tokens
 
@@ -82,10 +109,22 @@ python bot.py
 2. Send `/newbot`, follow the prompts.
 3. Copy the token like `123456789:ABCDef...` into `BOT_TOKEN`.
 
-**Pollinations API key:**
+### Pollinations keys
+
+Keys are **per user, not per deployment**. Leave `POLLINATIONS_API_KEY` **empty** in
+`.env`: filling it makes every user of the bot generate on *your* balance, which is
+exactly what this design avoids.
+
+Each user, including the operator, does this once in the chat:
+
 1. Go to [enter.pollinations.ai](https://enter.pollinations.ai) and sign in via GitHub.
-2. Create a new key with `profile` + `usage` permissions for `/balance` breakdown.
-3. Copy the `sk_...` key into `POLLINATIONS_API_KEY`.
+2. Create a key with `profile` + `usage` permissions (`usage` is what makes the
+   `/balance` breakdown work).
+3. Send it to the bot: `/token sk_...`
+
+The bot deletes the message containing the key as soon as it is stored, and keeps it in
+`users.pollinations_token`. `/token` alone shows the current key masked, `/token delete`
+removes it. Until a key is set, every generation replies with instructions instead.
 
 ---
 
@@ -93,43 +132,68 @@ python bot.py
 
 ```
 promptart_bot/
-├── bot.py                  # entry point, router wiring, ephemeral-DB warning
+├── bot.py                  # entry point, router wiring, command menu, ephemeral-DB warning
 ├── config.py               # pydantic-settings
+├── Dockerfile              # python:3.11-slim, declares VOLUME /data
+├── Procfile                # worker: python bot.py (buildpack platforms)
 ├── handlers/
 │   ├── start.py            # /start, /help, main reply menu
+│   ├── token.py            # /token — set / show / delete the user's own key
 │   ├── generation.py       # «Create Image» flow, Again/Enhance callbacks
 │   ├── edit.py             # «Edit Image» flow, photo collection, auto-detect
 │   ├── video.py            # «Create Video» flow and prompt collector
 │   ├── audio.py            # «Create Audio» flow (TTS) and voice sender
 │   ├── chat.py             # «Chat (Text)» interactive persistent chat router
+│   ├── prompts.py          # /prompts — builder, templates, saved prompts
 │   ├── settings.py         # model / ratio / style / voice pickers (with submenus)
 │   ├── history.py          # /history and /favorites with media previews
 │   ├── balance.py          # /balance command and menu button
-│   └── errors.py           # global error handler
+│   └── errors.py           # global error handler (turns TokenRequired into instructions)
 ├── services/
 │   ├── pollinations.py     # async httpx client for /v1/* and /video/* endpoints
 │   └── database.py         # aiosqlite + idempotent column migrations
-├── keyboards/              # main, generation, edit, settings keyboards
-├── middlewares/            # i18n, rate limit
+├── keyboards/              # main (incl. the "get a key" button), generation, edit, settings
+├── middlewares/            # i18n, rate limit, token (binds the caller's key to the update)
 ├── states/                 # FSM states (GenStates, EditStates)
-├── utils/                  # constants, helpers (models, aspect_ratios, styles, menu)
-├── locales/en.json         # UI strings
-├── data/                   # sqlite db (gitignored; mounted volume on Railway)
+├── utils/                  # constants, helpers (models, aspect_ratios, styles, prompts, menu)
+├── locales/                # en.json, ru.json — UI strings
+├── data/                   # sqlite db (gitignored; use a mounted volume in production)
 └── assets/                 # screenshots, logo
 ```
 
 ---
 
-## Deploy to Railway
+## Deployment
 
-> ⚠️ **DATA LOSS WARNING.** Railway containers have **ephemeral** filesystems.
-> Set up a persistent volume at `/data` and map `DB_PATH=/data/bot.db` in your environment variables to ensure data persists.
+> ⚠️ **DATA LOSS WARNING.** Container filesystems are wiped on every redeploy. The
+> database holds every user's Pollinations key, so without a persistent volume everyone
+> has to re-send `/token` after each deploy. `bot.py` logs a loud warning at startup if
+> `DB_PATH` looks ephemeral.
+
+**Docker** (the `Dockerfile` sets `DB_PATH=/data/bot.db` and declares `VOLUME /data`):
+
+```bash
+docker build -t promptart-bot .
+docker run -d --name promptart-bot \
+  -e BOT_TOKEN=123456789:ABCDef... \
+  -e ADMIN_ID=your_telegram_id \
+  -v promptart-data:/data \
+  promptart-bot
+```
+
+The bot uses **long polling** and listens on no port, so it needs no domain, no reverse
+proxy, and no health check endpoint. Run exactly **one** instance per bot token —
+a second one makes Telegram return `409 Conflict` and both start dropping updates.
+
+On PaaS platforms (Railway, Render, Fly): attach a volume mounted at `/data` and set
+`DB_PATH=/data/bot.db`.
 
 ---
 
 ## Pollinations API Endpoints Used
 
-All requests go to `https://gen.pollinations.ai` with `Authorization: Bearer sk_...`.
+All requests go to `https://gen.pollinations.ai` with `Authorization: Bearer sk_...`, where
+the key is the one the calling user set via `/token`.
 
 | Purpose | Endpoint | Method |
 |---|---|---|
