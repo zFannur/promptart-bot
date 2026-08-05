@@ -13,14 +13,12 @@ from loguru import logger
 from config import settings
 
 BASE_URL = "https://gen.pollinations.ai"
-IMAGE_URL = f"{BASE_URL}/v1/images/generations"
 EDIT_URL = f"{BASE_URL}/v1/images/edits"
 TEXT_URL = f"{BASE_URL}/v1/chat/completions"
 MODELS_URL = f"{BASE_URL}/models"
 BALANCE_URL = f"{BASE_URL}/account/balance"
 USAGE_URL = f"{BASE_URL}/account/usage"
 PROFILE_URL = f"{BASE_URL}/account/profile"
-VIDEO_URL = f"{BASE_URL}/v1/videos/generations"
 
 MODELS_CACHE_TTL_SEC = 600  # 10 min
 

@@ -21,26 +21,28 @@
 ### Modalities
 
 #### 🎨 Image Generation & Editing (In-context, 1–4 photos)
-- **21+ live image models** fetched from `gen.pollinations.ai/models` (flux, zimage, klein, etc.).
+- **47 live image models** fetched from `gen.pollinations.ai/models` (flux, zimage, klein, seedream, nanobanana, etc.).
 - **5 aspect ratios** at SDXL resolutions (1024², 1344×768, 768×1344, 1152×896, 896×1152).
 - **7 style presets** — photorealistic, anime, digital painting, oil, 3D, cyberpunk, sketch.
 - **In-context editing**: Send a photo directly or tap «✏️ Edit» and drop 1–4 photos + a description (e.g., "replace background with neon city").
-- **Edit model** setting (default `klein` @ 0.01p, pickers filtered to image-input models).
+- **Edit model** setting (default `klein` @ 0.005p); the picker lists only the 22 models
+  that accept image input.
 - **Again / Enhance** under every generated/edited image.
 
 #### 🎥 Video Generation
-- **10+ live video models** (e.g. `ltx-2`, `wan-fast`, `veo`, `nova-reel`).
+- **11 live video models** (e.g. `ltx-2`, `wan-fast`, `veo`, `nova-reel`).
 - **Custom aspect ratios** (`16:9`, `9:16`, `1:1`).
-- **Duration picker** (5s or 10s, depending on model limits).
+- **Duration picker** (3s, 5s, 8s or 10s, depending on model limits).
 - Fast and reliable video downloads using Pollinations `GET /video/{prompt}` API with 300s connection timeouts.
 
 #### 🔊 Audio (TTS) Generation
-- **10+ live audio models** (e.g. `openai-audio`, `elevenlabs`, `acestep`).
+- **23 live audio models** (e.g. `openai-audio`, `elevenlabs`, `lyria-3-clip`).
 - **Custom voice picker** supporting alloy, echo, fable, onyx, nova, and shimmer.
-- Generates and uploads voice/audio MP3s via OpenAI-compatible `POST /v1/audio/speech` endpoint.
+- Generates and uploads voice/audio MP3s via `POST /v1/chat/completions` with
+  `modalities: [text, audio]` — Pollinations has no separate speech endpoint.
 
 #### 💬 Persistent AI Text Chat
-- **52+ live text models** (e.g. `openai`, `mistral`, `deepseek`, `scribe`).
+- **152 live text models** (e.g. `openai`, `mistral`, `deepseek`, `scribe`).
 - Interactive chat mode: stay in conversational state until clicking any navigation button.
 - **Long responses safeguard**: Answers exceeding 4,000 characters are automatically formatted and sent as attached `.md` documents, preventing Telegram truncation errors.
 
@@ -207,11 +209,17 @@ the key is the one the calling user set via `/token`.
 | Get pollen balance | `/account/balance` | GET |
 | Get account profile (tier) | `/account/profile` | GET |
 | Get usage history | `/account/usage` | GET |
-| Text-to-image generation | `/v1/images/generations` | POST (JSON) |
+| Text-to-image generation | `/image/{prompt}` | GET (binary) |
 | In-context image editing | `/v1/images/edits` | POST (multipart) |
 | Text-to-video generation | `/video/{prompt}` | GET (binary) |
-| Text-to-speech (audio) | `/v1/audio/speech` | POST (JSON) |
+| Text-to-speech (audio) | `/v1/chat/completions` | POST (JSON, `modalities: [text, audio]`) |
 | Text generation / Chat | `/v1/chat/completions` | POST (JSON) |
+
+`/models` and the model-health feed at `/v1/models/status` (the data behind
+[model-monitor.pollinations.ai](https://model-monitor.pollinations.ai)) are readable
+without a key. Note that the status feed aggregates traffic from every caller and is
+dominated by 4xx from unauthenticated requests, so its success ratios are not a measure
+of whether a model works — only `errors_5xx` and the latency percentiles are.
 
 ## Tech Stack
 
