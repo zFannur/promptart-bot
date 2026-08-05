@@ -33,10 +33,76 @@ current_token: ContextVar[str | None] = ContextVar("pollinations_token", default
 class ModelInfo:
     name: str
     description: str
-    price_pollen: float  # per single image, derived from completionImageTokens
+    price_pollen: float  # cost of one unit — see price_unit
     supports_image_input: bool  # True = supports img2img / edits
     aliases: tuple[str, ...] = ()
     paid_only: bool = False
+    price_unit: str = ""  # "" = per item, "/s" = per second, "/1K" = per 1K tokens
+    price_estimated: bool = False  # True = derived from token prices, show with "~"
+
+
+def _num(pricing: dict, key: str) -> float:
+    try:
+        return float(pricing.get(key) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+# Pollinations quotes some models per generated item and others per token. Turning a
+# per-token price into "what one picture costs" needs assumed token counts, so anything
+# derived from them is flagged as an estimate and rendered with a leading "~".
+_EST_PROMPT_TOKENS = 50      # a typical text prompt
+_EST_IMAGE_OUT_TOKENS = 1000  # ≈ one 1024×1024 image at medium quality
+_EST_IMAGE_IN_TOKENS = 1000   # one reference image, for editing models
+
+# A per-token price is orders of magnitude smaller than a per-image one. Anything at or
+# above this is a flat per-image price that merely happens to also list input costs —
+# reading it as per-token multiplied grok-imagine's 0.02 up to an absurd 20 pollen.
+_PER_TOKEN_CEILING = 0.001
+
+
+def _is_per_token(value: float) -> bool:
+    """A per-token price is orders of magnitude below a per-item one."""
+    return 0 < value < _PER_TOKEN_CEILING
+
+
+def price_of(modality: str, pricing: dict, *, accepts_image: bool) -> tuple[float, str, bool]:
+    """Return (pollen, unit, is_estimate) for one generated item."""
+    if modality == "video":
+        return _num(pricing, "completionVideoSeconds"), "/s", False
+
+    if modality == "audio":
+        per_sec = _num(pricing, "completionAudioSeconds")
+        if per_sec:
+            return per_sec, "/s", False
+        # Most TTS models are priced per audio token and carry no per-second figure;
+        # reading only completionAudioSeconds showed 21 of 23 of them as "free".
+        out = _num(pricing, "completionAudioTokens")
+        if _is_per_token(out):
+            return out * 1000, "/1K", False
+        if out:
+            return out, "", False  # e.g. lyria-3-clip: priced per clip, not per token
+        # Voice changer / isolator charge for the audio you send in, not the output.
+        by_input = _num(pricing, "promptAudioSeconds")
+        if by_input:
+            return by_input, "/s", False
+        # A few video models list "audio" as an output too (video with sound) and
+        # carry only a per-second video price.
+        return _num(pricing, "completionVideoSeconds"), "/s", False
+
+    if modality == "text":
+        return _num(pricing, "completionTextTokens") * 1000, "/1K", False
+
+    # image
+    out = _num(pricing, "completionImageTokens")
+    if not (_is_per_token(out) and any(k.startswith("prompt") for k in pricing)):
+        return out, "", False
+
+    est = out * _EST_IMAGE_OUT_TOKENS
+    est += _num(pricing, "promptTextTokens") * _EST_PROMPT_TOKENS
+    if accepts_image:
+        est += _num(pricing, "promptImageTokens") * _EST_IMAGE_IN_TOKENS
+    return est, "", True
 
 
 class BalanceInfo(float):
@@ -136,48 +202,21 @@ class PollinationsClient:
                 if modality not in entry.get("output_modalities", []):
                     continue
                 
-                pricing = entry.get("pricing") or {}
-                price = 0.0
-                if modality == "image":
-                    price_raw = pricing.get("completionImageTokens")
-                    try:
-                        price = float(price_raw) if price_raw is not None else 0.0
-                    except (TypeError, ValueError):
-                        price = 0.0
-                    is_token_priced = any(
-                        k for k in pricing
-                        if k.startswith("prompt") and k != "currency"
-                    )
-                    if is_token_priced:
-                        price *= 1000  # estimate for one 1024×1024 image
-                elif modality == "video":
-                    price_raw = pricing.get("completionVideoSeconds")
-                    try:
-                        price = float(price_raw) if price_raw is not None else 0.0
-                    except (TypeError, ValueError):
-                        price = 0.0
-                elif modality == "audio":
-                    price_raw = pricing.get("completionAudioSeconds")
-                    try:
-                        price = float(price_raw) if price_raw is not None else 0.0
-                    except (TypeError, ValueError):
-                        price = 0.0
-                elif modality == "text":
-                    price_raw = pricing.get("completionTextTokens")
-                    try:
-                        price = float(price_raw) if price_raw is not None else 0.0
-                    except (TypeError, ValueError):
-                        price = 0.0
-                    price *= 1000  # per 1K tokens
+                accepts_image = "image" in entry.get("input_modalities", [])
+                price, unit, estimated = price_of(
+                    modality, entry.get("pricing") or {}, accepts_image=accepts_image
+                )
 
                 models.append(
                     ModelInfo(
                         name=entry.get("name", ""),
                         description=(entry.get("description") or "").strip(),
                         price_pollen=price,
-                        supports_image_input="image" in entry.get("input_modalities", []),
+                        supports_image_input=accepts_image,
                         aliases=tuple(entry.get("aliases") or ()),
                         paid_only=bool(entry.get("paid_only")),
+                        price_unit=unit,
+                        price_estimated=estimated,
                     )
                 )
 

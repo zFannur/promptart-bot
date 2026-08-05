@@ -23,7 +23,7 @@ from services.pollinations import BalanceUnavailable, ModelInfo, pollinations
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
 from utils.menu import SETTINGS_LABELS
-from utils.models import format_price
+from utils.models import format_price, model_label as fmt_model_label
 from utils.styles import STYLES_BY_KEY
 
 router = Router(name=__name__)
@@ -32,7 +32,7 @@ router = Router(name=__name__)
 def _format_settings(user, model_by_key: dict[str, ModelInfo], i18n: dict[str, str], mode: str = "main") -> str:
     def fmt_model(m_key):
         info = model_by_key.get(m_key)
-        return f"{m_key} · {format_price(info.price_pollen)}" if info else m_key
+        return fmt_model_label(info) if info else m_key
 
     if mode == "main":
         return t(
@@ -50,9 +50,9 @@ def _format_settings(user, model_by_key: dict[str, ModelInfo], i18n: dict[str, s
         )
     elif mode == "image":
         model_info = model_by_key.get(user.model)
-        model_label = f"{user.model} · {format_price(model_info.price_pollen)}" if model_info else user.model
+        model_label = fmt_model_label(model_info) if model_info else user.model
         edit_info = model_by_key.get(user.edit_model)
-        edit_label = f"{user.edit_model} · {format_price(edit_info.price_pollen)}" if edit_info else user.edit_model
+        edit_label = fmt_model_label(edit_info) if edit_info else user.edit_model
         ratio_label = RATIOS_BY_KEY[user.aspect_ratio].label if user.aspect_ratio in RATIOS_BY_KEY else user.aspect_ratio
         if user.style and user.style in STYLES_BY_KEY:
             s = STYLES_BY_KEY[user.style]

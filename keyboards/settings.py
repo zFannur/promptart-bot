@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from services.pollinations import ModelInfo
 from utils.aspect_ratios import RATIOS
 from utils.i18n import t
-from utils.models import format_price
+from utils.models import model_label
 from utils.styles import STYLES
 
 
@@ -84,21 +84,10 @@ def models_kb(
     page = max(0, min(page, pages - 1))
     for m in models[page * MODELS_PER_PAGE : (page + 1) * MODELS_PER_PAGE]:
         mark = "✅ " if m.name == current else ""
-
-        # Format the price based on modality / unit
-        if "video" in field:
-            price_str = f"{format_price(m.price_pollen)}/s"
-        elif "audio" in field:
-            price_str = f"{format_price(m.price_pollen)}/s"
-        elif "text" in field:
-            price_str = f"{format_price(m.price_pollen)}/1K"
-        else:
-            price_str = format_price(m.price_pollen)
-            
-        # 💎 = needs a topped-up balance; the free hourly tier grant will not cover it.
-        paid = " 💎" if m.paid_only else ""
+        # The unit now travels with the model (per image / per second / per 1K tokens)
+        # instead of being guessed from the field name.
         kb.button(
-            text=f"{mark}{m.name} · {price_str}{paid}",
+            text=f"{mark}{model_label(m)}",
             callback_data=f"setval:{field}:{m.name}",
         )
     kb.adjust(1)

@@ -50,8 +50,12 @@
   - **Video Settings** (Video Models, Aspect Ratio, Duration)
   - **Audio Settings** (TTS Models, Voice Profiles)
   - **Chat Settings** (Text Models)
-- **Live pricing** displayed inline; models that need a topped-up balance are marked `💎`
-  and sorted last, but remain selectable — you pay with your own key, so the choice is yours.
+- **Live pricing** displayed inline, in the unit the model is actually billed in: per image,
+  `/s` for video and speech, `/1K` for token-priced text and audio. Models billed per token
+  show an estimate for one item, prefixed `~`, that includes the input cost (prompt, plus a
+  reference image for editing models).
+- Models that need a topped-up balance are marked `💰` and sorted last, but remain
+  selectable — you pay with your own key, so the choice is yours.
 - Long model lists are paged (30 per page) to stay within Telegram's keyboard limits.
 - Interactive checkmark (`✅`) state indicators update immediately on click.
 

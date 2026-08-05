@@ -21,11 +21,39 @@ LEGACY_MODEL_REMAP: dict[str, str] = {
 
 
 def format_price(pollen: float) -> str:
-    """Render pollen price compactly: 0.001 -> '0.001p', 0.0525 -> '0.053p'."""
+    """Render pollen price compactly: 0.002 -> '0.002p', 0.0525 -> '0.053p'.
+
+    The zero-stripping used to run after "p" was appended, so it never matched and
+    prices came out padded — 0.002 rendered as "0.0020p" and 0.1 as "0.100p".
+    """
     if pollen <= 0:
         return "free"
     if pollen < 0.001:
-        return f"{pollen:.5f}p".rstrip("0").rstrip(".")
-    if pollen < 0.01:
-        return f"{pollen:.4f}p".rstrip("0").rstrip(".")
-    return f"{pollen:.3f}p".rstrip("0").rstrip(".")
+        digits = f"{pollen:.5f}"
+    elif pollen < 0.01:
+        digits = f"{pollen:.4f}"
+    else:
+        digits = f"{pollen:.3f}"
+    return digits.rstrip("0").rstrip(".") + "p"
+
+
+# Marks a model that the free hourly tier grant will not cover.
+PAID_ICON = "💰"
+
+
+def price_label(model) -> str:
+    """Price as shown to the user: unit included, '~' when it is an estimate.
+
+    `model` is a services.pollinations.ModelInfo — taken untyped to keep this
+    module import-free of the client.
+    """
+    if model.price_pollen <= 0:
+        return "free"
+    prefix = "~" if getattr(model, "price_estimated", False) else ""
+    return f"{prefix}{format_price(model.price_pollen)}{getattr(model, 'price_unit', '')}"
+
+
+def model_label(model) -> str:
+    """`name · price` plus the paid marker — the one place that layout is decided."""
+    paid = f" {PAID_ICON}" if getattr(model, "paid_only", False) else ""
+    return f"{model.name} · {price_label(model)}{paid}"
