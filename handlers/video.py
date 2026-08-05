@@ -17,6 +17,7 @@ from services.database import (
     update_generation_file_id,
 )
 from services.pollinations import (
+    TokenRequired,
     NSFWRejected,
     PollinationsError,
     PremiumRequired,
@@ -103,8 +104,19 @@ async def _do_video_generation(
         logger.warning("quota exhausted: {}", e)
         await progress_msg.edit_text(t(i18n, "errors.api_down"))
         return
+    except TokenRequired:
+        # Subclass of PollinationsError — must be caught first so a user without
+        # a key is told how to get one instead of "generation failed".
+        await progress_msg.edit_text(t(i18n, "token.required"), reply_markup=get_key_button(i18n))
+        return
     except PollinationsError as e:
         logger.warning("pollinations video error: {}", e)
+        await progress_msg.edit_text(t(i18n, "video.error"))
+        return
+    except Exception as e:  # noqa: BLE001
+        # Without this, an unforeseen failure left "in progress…" on screen
+        # forever and the bot looked hung.
+        logger.exception("unexpected video failure: {}", e)
         await progress_msg.edit_text(t(i18n, "video.error"))
         return
 

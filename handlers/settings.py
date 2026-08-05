@@ -195,42 +195,67 @@ async def cb_text_menu(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     await cb.message.edit_text(_format_settings(user, by_key, i18n, "text"), reply_markup=text_settings_menu(i18n))
 
 
-@router.callback_query(F.data == "set:model")
-async def cb_pick_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
-    await cb.answer()
+# field -> (modality, header locale key, back route, image-input-only)
+_MODEL_PICKERS: dict[str, tuple[str, str, str, bool]] = {
+    "model": ("image", "settings.choose_model_header", "set:image_menu", False),
+    "edit_model": ("image", "settings.choose_edit_model", "set:image_menu", True),
+    "video_model": ("video", "settings.choose_video_model", "set:video_menu", False),
+    "audio_model": ("audio", "settings.choose_audio_model", "set:audio_menu", False),
+    "text_model": ("text", "settings.choose_text_model", "set:text_menu", False),
+}
+
+
+async def _show_model_picker(
+    cb: CallbackQuery, i18n: dict[str, str], field: str, page: int = 0
+) -> None:
+    """One renderer for every model picker, so paging can reuse it."""
     if cb.from_user is None or cb.message is None:
         return
     user = await get_user(cb.from_user.id)
     if user is None:
         return
-    models, _ = await _models_index("image")
-    balance_line = await _balance_line(i18n)
-    header = t(i18n, "settings.choose_model_header", balance=balance_line)
+    modality, header_key, back_route, editable_only = _MODEL_PICKERS[field]
+    models, _ = await _models_index(modality)
+    if editable_only:
+        models = [m for m in models if m.supports_image_input]
+        if not models:
+            await cb.message.edit_text(t(i18n, "settings.no_edit_models"))
+            return
+    header = t(i18n, header_key, balance=await _balance_line(i18n))
     await cb.message.edit_text(
         header,
-        reply_markup=models_kb(user.model, models, i18n, field="model", back_route="set:image_menu"),
+        reply_markup=models_kb(
+            getattr(user, field), models, i18n, field=field, back_route=back_route, page=page
+        ),
     )
+
+
+@router.callback_query(F.data.startswith("mpage:"))
+async def cb_model_page(cb: CallbackQuery, i18n: dict[str, str]) -> None:
+    await cb.answer()
+    if cb.data is None:
+        return
+    _, field, page = cb.data.split(":", 2)
+    if field not in _MODEL_PICKERS:
+        return
+    await _show_model_picker(cb, i18n, field, int(page))
+
+
+@router.callback_query(F.data == "noop")
+async def cb_noop(cb: CallbackQuery) -> None:
+    await cb.answer()
+
+
+@router.callback_query(F.data == "set:model")
+async def cb_pick_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
+    await cb.answer()
+    await _show_model_picker(cb, i18n, "model")
 
 
 @router.callback_query(F.data == "set:edit_model")
 async def cb_pick_edit_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     await cb.answer()
-    if cb.from_user is None or cb.message is None:
-        return
-    user = await get_user(cb.from_user.id)
-    if user is None:
-        return
-    all_models, _ = await _models_index("image")
-    editable = [m for m in all_models if m.supports_image_input]
-    if not editable:
-        await cb.message.edit_text(t(i18n, "settings.no_edit_models"))
-        return
-    balance_line = await _balance_line(i18n)
-    header = t(i18n, "settings.choose_edit_model", balance=balance_line)
-    await cb.message.edit_text(
-        header,
-        reply_markup=models_kb(user.edit_model, editable, i18n, field="edit_model", back_route="set:image_menu"),
-    )
+    await _show_model_picker(cb, i18n, "edit_model")
 
 
 @router.callback_query(F.data == "set:ratio")
@@ -258,18 +283,7 @@ async def cb_pick_style(cb: CallbackQuery, i18n: dict[str, str]) -> None:
 @router.callback_query(F.data == "set:video_model")
 async def cb_pick_video_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     await cb.answer()
-    if cb.from_user is None or cb.message is None:
-        return
-    user = await get_user(cb.from_user.id)
-    if user is None:
-        return
-    models, _ = await _models_index("video")
-    balance_line = await _balance_line(i18n)
-    header = t(i18n, "settings.choose_video_model", balance=balance_line)
-    await cb.message.edit_text(
-        header,
-        reply_markup=models_kb(user.video_model, models, i18n, field="video_model", back_route="set:video_menu"),
-    )
+    await _show_model_picker(cb, i18n, "video_model")
 
 
 @router.callback_query(F.data == "set:video_ratio")
@@ -297,18 +311,7 @@ async def cb_pick_video_duration(cb: CallbackQuery, i18n: dict[str, str]) -> Non
 @router.callback_query(F.data == "set:audio_model")
 async def cb_pick_audio_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     await cb.answer()
-    if cb.from_user is None or cb.message is None:
-        return
-    user = await get_user(cb.from_user.id)
-    if user is None:
-        return
-    models, _ = await _models_index("audio")
-    balance_line = await _balance_line(i18n)
-    header = t(i18n, "settings.choose_audio_model", balance=balance_line)
-    await cb.message.edit_text(
-        header,
-        reply_markup=models_kb(user.audio_model, models, i18n, field="audio_model", back_route="set:audio_menu"),
-    )
+    await _show_model_picker(cb, i18n, "audio_model")
 
 
 @router.callback_query(F.data == "set:audio_voice")
@@ -325,18 +328,7 @@ async def cb_pick_audio_voice(cb: CallbackQuery, i18n: dict[str, str]) -> None:
 @router.callback_query(F.data == "set:text_model")
 async def cb_pick_text_model(cb: CallbackQuery, i18n: dict[str, str]) -> None:
     await cb.answer()
-    if cb.from_user is None or cb.message is None:
-        return
-    user = await get_user(cb.from_user.id)
-    if user is None:
-        return
-    models, _ = await _models_index("text")
-    balance_line = await _balance_line(i18n)
-    header = t(i18n, "settings.choose_text_model", balance=balance_line)
-    await cb.message.edit_text(
-        header,
-        reply_markup=models_kb(user.text_model, models, i18n, field="text_model", back_route="set:text_menu"),
-    )
+    await _show_model_picker(cb, i18n, "text_model")
 
 
 @router.callback_query(F.data == "set:image_quality")

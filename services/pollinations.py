@@ -184,14 +184,14 @@ class PollinationsClient:
             if not models:
                 models = list(_FALLBACK_MODELS[modality])
 
-            # Only free models are exposed in the bot. Paid-only models
-            # (the [paid] tag — require a topped-up balance, not covered by the
-            # hourly tier grant) are hidden everywhere: pickers, the current-
-            # model display lookup, and setval validation all read this list,
-            # so a model that isn't here simply can't be selected.
-            models = [m for m in models if not m.paid_only]
-
-            models.sort(key=lambda m: (m.price_pollen, m.name))
+            # Paid-only models used to be filtered out here. That made sense while
+            # the bot ran on one shared key — a paid model spent the owner's money.
+            # Now every user pays with their own key (/token), so hiding them just
+            # removed choices people had already paid for: it cut the image-editing
+            # picker from 22 models down to 7. They are listed with a 💎 marker
+            # instead; a user without a topped-up balance gets a clear
+            # "premium required" reply naming the model.
+            models.sort(key=lambda m: (m.paid_only, m.price_pollen, m.name))
             self._models_cache[modality] = (now, models)
             return models
 

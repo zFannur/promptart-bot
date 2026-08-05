@@ -50,7 +50,9 @@
   - **Video Settings** (Video Models, Aspect Ratio, Duration)
   - **Audio Settings** (TTS Models, Voice Profiles)
   - **Chat Settings** (Text Models)
-- **Live pricing** displayed inline with a `[paid]` tag for paid-only models.
+- **Live pricing** displayed inline; models that need a topped-up balance are marked `💎`
+  and sorted last, but remain selectable — you pay with your own key, so the choice is yours.
+- Long model lists are paged (30 per page) to stay within Telegram's keyboard limits.
 - Interactive checkmark (`✅`) state indicators update immediately on click.
 
 ### Limit Increase

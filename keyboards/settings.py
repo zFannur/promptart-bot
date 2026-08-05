@@ -65,6 +65,11 @@ def text_settings_menu(i18n: dict[str, str]) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+# Telegram chokes on very long inline keyboards, and the text picker alone now
+# lists 150+ models, so the list is paged rather than dumped in one message.
+MODELS_PER_PAGE = 30
+
+
 def models_kb(
     current: str,
     models: list[ModelInfo],
@@ -72,9 +77,12 @@ def models_kb(
     *,
     field: str = "model",
     back_route: str = "set:image_menu",
+    page: int = 0,
 ) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    for m in models:
+    pages = max(1, (len(models) + MODELS_PER_PAGE - 1) // MODELS_PER_PAGE)
+    page = max(0, min(page, pages - 1))
+    for m in models[page * MODELS_PER_PAGE : (page + 1) * MODELS_PER_PAGE]:
         mark = "✅ " if m.name == current else ""
 
         # Format the price based on modality / unit
@@ -87,12 +95,30 @@ def models_kb(
         else:
             price_str = format_price(m.price_pollen)
             
+        # 💎 = needs a topped-up balance; the free hourly tier grant will not cover it.
+        paid = " 💎" if m.paid_only else ""
         kb.button(
-            text=f"{mark}{m.name} · {price_str}",
+            text=f"{mark}{m.name} · {price_str}{paid}",
             callback_data=f"setval:{field}:{m.name}",
         )
-    kb.button(text=t(i18n, "buttons.back"), callback_data=back_route)
     kb.adjust(1)
+    if pages > 1:
+        nav = InlineKeyboardBuilder()
+        nav.button(
+            text="◀" if page > 0 else " ",
+            callback_data=f"mpage:{field}:{page - 1}" if page > 0 else "noop",
+        )
+        nav.button(text=f"{page + 1}/{pages}", callback_data="noop")
+        nav.button(
+            text="▶" if page < pages - 1 else " ",
+            callback_data=f"mpage:{field}:{page + 1}" if page < pages - 1 else "noop",
+        )
+        nav.adjust(3)
+        kb.attach(nav)
+    back = InlineKeyboardBuilder()
+    back.button(text=t(i18n, "buttons.back"), callback_data=back_route)
+    back.adjust(1)
+    kb.attach(back)
     return kb.as_markup()
 
 

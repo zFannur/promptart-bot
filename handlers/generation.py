@@ -5,7 +5,7 @@ from loguru import logger
 
 from handlers.edit import run_edit_with_sources
 from keyboards.generation import confirm_enhance_kb, post_gen_kb, prompt_options_kb
-from keyboards.main import main_menu
+from keyboards.main import get_key_button, main_menu
 from services.database import (
     add_favorite,
     get_generation,
@@ -20,6 +20,7 @@ from services.pollinations import (
     PollinationsError,
     PremiumRequired,
     QuotaExhausted,
+    TokenRequired,
     pollinations,
 )
 from states.generation import GenStates
@@ -128,8 +129,20 @@ async def _do_generation(
         logger.warning("quota exhausted: {}", e)
         await progress_msg.edit_text(t(i18n, "errors.api_down"))
         return
+    except TokenRequired:
+        # Subclass of PollinationsError, so it must be caught BEFORE it — otherwise
+        # a user with no key gets "generation failed" instead of how to fix it.
+        await progress_msg.edit_text(t(i18n, "token.required"), reply_markup=get_key_button(i18n))
+        return
     except PollinationsError as e:
         logger.warning("pollinations error: {}", e)
+        await progress_msg.edit_text(t(i18n, "generation.error"))
+        return
+    except Exception as e:  # noqa: BLE001 - see below
+        # Anything unforeseen (protocol errors on long downloads, encoding bugs)
+        # used to escape and leave "generating…" on screen forever, which reads
+        # as a hung bot. Always land the failure on the progress message.
+        logger.exception("unexpected generation failure: {}", e)
         await progress_msg.edit_text(t(i18n, "generation.error"))
         return
 
