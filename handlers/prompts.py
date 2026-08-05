@@ -16,6 +16,7 @@ from services.database import (
 )
 from states.generation import PromptStates
 from utils.i18n import t
+from utils.menu import USER_TEXT
 from utils.prompt_builder import build_prompt
 from utils.prompt_templates import TRENDING_TEMPLATES
 
@@ -157,7 +158,7 @@ async def cb_save_prompt(cb: CallbackQuery, state: FSMContext, i18n: dict[str, s
     await cb.message.answer(t(i18n, "prompt.ask_title"))
 
 
-@router.message(PromptStates.waiting_for_title, F.text)
+@router.message(PromptStates.waiting_for_title, USER_TEXT)
 async def process_save_title(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.from_user is None or not message.text:
         return
@@ -252,7 +253,7 @@ async def cb_trend_tpl(cb: CallbackQuery, state: FSMContext, i18n: dict[str, str
     )
 
 
-@router.message(PromptStates.waiting_for_subject, F.text)
+@router.message(PromptStates.waiting_for_subject, USER_TEXT)
 async def process_template_subject(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.from_user is None or message.bot is None or not message.text:
         return
@@ -362,7 +363,7 @@ async def cb_pb_lens(cb: CallbackQuery, state: FSMContext, i18n: dict[str, str])
     await cb.message.edit_text(t(i18n, "prompt.builder_subject"), reply_markup=builder.as_markup())
 
 
-@router.message(PromptStates.waiting_for_builder_subject, F.text)
+@router.message(PromptStates.waiting_for_builder_subject, USER_TEXT)
 async def process_builder_subject(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.from_user is None or message.bot is None or not message.text:
         return

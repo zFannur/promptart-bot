@@ -17,6 +17,22 @@ from services import database as db  # noqa: E402
 from services.pollinations import TokenRequired, current_token, pollinations  # noqa: E402
 
 
+def check_menu_taps_are_not_prompts() -> None:
+    """A tap on any reply-keyboard button must never reach a prompt handler.
+
+    Regression: after a restart the FSM state is gone but the keyboard is
+    still on screen, so "🏠 Main menu" hit the F.text fallback and was
+    generated as an image.
+    """
+    from types import SimpleNamespace
+
+    from utils.menu import ALL_MENU_LABELS, USER_TEXT
+
+    for label in ALL_MENU_LABELS:
+        assert not USER_TEXT.resolve(SimpleNamespace(text=label)), label
+    assert USER_TEXT.resolve(SimpleNamespace(text="a cat in a hat"))
+
+
 async def main() -> None:
     assert settings.pollinations_api_key == "", "owner key must default to empty"
 
@@ -48,6 +64,8 @@ async def main() -> None:
 
     a, b = await asyncio.gather(as_user("key-a"), as_user("key-b"))
     assert a == "Bearer key-a" and b == "Bearer key-b", (a, b)
+
+    check_menu_taps_are_not_prompts()
 
     await pollinations.close()
     print("ok")

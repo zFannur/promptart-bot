@@ -1,3 +1,5 @@
+from aiogram import F
+
 from utils.i18n import SUPPORTED_LANGS, load_locale
 
 
@@ -34,3 +36,10 @@ ALL_MENU_LABELS = (
     | CLEAR_CONTEXT_LABELS
     | BACK_TO_MENU_LABELS
 )
+
+# Text that is actual user content, not a tap on a reply-keyboard button.
+# Every prompt-collecting handler must filter on this: without it, pressing
+# "🏠 Main menu" while a prompt is awaited generates an image of the words
+# "🏠 Main menu". A bot restart wipes MemoryStorage while the old keyboard
+# stays on screen, so this happens without the user doing anything odd.
+USER_TEXT = F.text & ~F.text.in_(ALL_MENU_LABELS)

@@ -43,7 +43,7 @@ from services.pollinations import (
 from states.generation import EditStates
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
-from utils.menu import EDIT_LABELS
+from utils.menu import EDIT_LABELS, USER_TEXT
 
 router = Router(name=__name__)
 
@@ -208,7 +208,7 @@ async def auto_enter_edit(message: Message, state: FSMContext, i18n: dict[str, s
 # ─────────────────────────── text → trigger ─────────────────────────────
 
 
-@router.message(EditStates.collecting, F.text)
+@router.message(EditStates.collecting, USER_TEXT)
 async def receive_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.bot is None or message.from_user is None or not message.text:
         return

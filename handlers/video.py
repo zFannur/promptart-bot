@@ -26,7 +26,7 @@ from services.pollinations import (
 )
 from states.generation import GenStates
 from utils.i18n import t
-from utils.menu import CREATE_VIDEO_LABELS
+from utils.menu import CREATE_VIDEO_LABELS, USER_TEXT
 
 router = Router(name=__name__)
 
@@ -39,7 +39,7 @@ async def ask_video_prompt(message: Message, state: FSMContext, i18n: dict[str, 
     await message.answer(t(i18n, "video.ask_prompt"))
 
 
-@router.message(GenStates.waiting_for_video_prompt, F.text)
+@router.message(GenStates.waiting_for_video_prompt, USER_TEXT)
 async def receive_video_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.from_user is None or message.bot is None or not message.text:
         return

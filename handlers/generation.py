@@ -26,7 +26,7 @@ from services.pollinations import (
 from states.generation import GenStates
 from utils.aspect_ratios import RATIOS_BY_KEY
 from utils.i18n import t
-from utils.menu import CREATE_IMAGE_LABELS
+from utils.menu import BACK_TO_MENU_LABELS, CLEAR_CONTEXT_LABELS, CREATE_IMAGE_LABELS, USER_TEXT
 from utils.styles import apply_style
 
 router = Router(name=__name__)
@@ -40,7 +40,7 @@ async def ask_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) 
     await message.answer(t(i18n, "generation.ask_prompt"), reply_markup=prompt_options_kb(i18n))
 
 
-@router.message(GenStates.waiting_for_prompt, F.text)
+@router.message(GenStates.waiting_for_prompt, USER_TEXT)
 async def receive_prompt(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     if message.from_user is None or message.bot is None or not message.text:
         return
@@ -343,7 +343,19 @@ async def cb_enhance_cancel(cb: CallbackQuery) -> None:
         pass
 
 
-@router.message(F.text)
+@router.message(F.text.in_(BACK_TO_MENU_LABELS | CLEAR_CONTEXT_LABELS))
+async def back_to_menu(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
+    """Catch-all for menu buttons no stateful handler claimed.
+
+    Registered last, so chat mode's own exit handler still wins while its
+    state is alive; this only covers the case where the state is gone
+    (bot restart) but the keyboard is still on the user's screen.
+    """
+    await state.clear()
+    await message.answer(t(i18n, "chat.returned_to_menu"), reply_markup=main_menu(i18n))
+
+
+@router.message(USER_TEXT)
 async def fallback_text(message: Message, state: FSMContext, i18n: dict[str, str]) -> None:
     """Treat any plain text outside FSM as a fresh generation request."""
     if message.from_user is None or message.bot is None or not message.text:
