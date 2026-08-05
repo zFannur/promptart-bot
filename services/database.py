@@ -390,6 +390,24 @@ async def list_user_generations(user_id: int, limit: int = 10) -> list[Generatio
         return [_row_to_gen(r) for r in rows]
 
 
+async def clear_user_generations(user_id: int) -> int:
+    """Delete the user's whole generation history, favorites included.
+
+    Returns how many generations were removed. Saved prompts are a separate
+    library and survive.
+    """
+    async with _connect() as db:
+        cur = await db.execute(
+            "SELECT COUNT(*) AS n FROM generations WHERE user_id = ?", (user_id,)
+        )
+        row = await cur.fetchone()
+        count = row["n"] if row else 0
+        await db.execute("DELETE FROM favorites WHERE user_id = ?", (user_id,))
+        await db.execute("DELETE FROM generations WHERE user_id = ?", (user_id,))
+        await db.commit()
+        return count
+
+
 async def add_favorite(user_id: int, generation_id: int) -> bool:
     async with _connect() as db:
         try:

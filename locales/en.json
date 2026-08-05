@@ -160,5 +160,10 @@
   "start.welcome_no_key": "👋 Hi, {name}!\n\nI generate images, video and speech from a description, edit photos and can chat — all with AI.\n\n<b>⚠️ First you need your own Pollinations key.</b>\nThis bot runs on your account, never on someone else's balance, so nothing generates without it.\n\n<b>Two steps:</b>\n1️⃣ Tap the button below and create a key\n2️⃣ Send it here in one message:\n<code>/token YOUR_KEY</code>\n\nI delete the message with the key right away so it does not stay in the chat.",
   "start.menu_hint": "👇 The menu is below the input field. Buttons start working once you send a key.",
   "token.get_key_button": "🔑 Get a Pollinations key",
-  "token.malformed": "❌ That does not look like a key.\n\nA Pollinations key is a string of latin letters and digits with no spaces.\n\nCopy the whole key from the Pollinations page and send:\n<code>/token YOUR_KEY</code>"
+  "token.malformed": "❌ That does not look like a key.\n\nA Pollinations key is a string of latin letters and digits with no spaces.\n\nCopy the whole key from the Pollinations page and send:\n<code>/token YOUR_KEY</code>",
+  "buttons.clear_history": "🗑 Clear history",
+  "buttons.clear_history_yes": "🗑 Yes, delete everything",
+  "history.clear_confirm": "🗑 Delete your <b>entire</b> generation history and favorites?\n\nThis cannot be undone. Saved prompts stay.",
+  "history.cleared": "✅ History cleared. Removed: {count}",
+  "history.clear_cancelled": "Cancelled — your history is untouched."
 }

@@ -32,6 +32,20 @@ def confirm_enhance_kb(gen_id: int, i18n: dict[str, str]) -> InlineKeyboardMarku
     return kb.as_markup()
 
 
+def history_clear_kb(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t(i18n, "buttons.clear_history"), callback_data="hist_clear")
+    return kb.as_markup()
+
+
+def confirm_clear_history_kb(i18n: dict[str, str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t(i18n, "buttons.clear_history_yes"), callback_data="hist_clear_yes")
+    kb.button(text=t(i18n, "buttons.cancel"), callback_data="hist_clear_no")
+    kb.adjust(1, 1)
+    return kb.as_markup()
+
+
 def history_item_kb(gen_id: int, i18n: dict[str, str]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=t(i18n, "buttons.again"), callback_data=f"regen:{gen_id}")
